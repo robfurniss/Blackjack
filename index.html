@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#17110a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BJ ASM-CSM Sim">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<title>Blackjack ASM - CSM Sim</title>
+<style>
+:root{
+  color-scheme:dark;
+  --felt:#0d4331;--felt2:#072a1f;--rail:#17110a;--rail2:#2a2013;
+  --brass:#d6ad4f;--ivory:#f6f0e1;--ruby:#c4282f;--mint:#72e3c8;
+  --muted:#8db5a4;--bad:#ff8272;--good:#86e394;--panel:rgba(5,20,15,.86);
+  --line:rgba(214,173,79,.28);
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;height:100%;background:var(--rail);color:var(--ivory);
+  font:15px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+#app{position:fixed;top:env(safe-area-inset-top,0px);bottom:env(safe-area-inset-bottom,0px);left:0;right:0;max-width:560px;margin:0 auto;display:flex;flex-direction:column;
+  background:radial-gradient(120% 80% at 50% 35%,var(--felt) 0%,var(--felt2) 100%);
+  border-inline:1px solid #000}
+/* HUD */
+#hud{display:flex;gap:10px;align-items:stretch;padding:8px 10px;background:var(--rail);border-bottom:2px solid var(--rail2)}
+#mach{flex:0 0 74px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:var(--muted)}
+#mach svg{width:74px;height:62px}
+#pills{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pill{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:4px 8px;min-width:0}
+.pill b{display:block;font-size:19px;font-variant-numeric:tabular-nums;font-family:Georgia,serif;letter-spacing:.2px}
+.pill span{font-size:10.5px;color:var(--muted)}
+.pill.tc b{color:var(--mint)}
+#menuBtn{flex:0 0 40px;background:none;border:1px solid var(--line);border-radius:10px;color:var(--brass);font-size:20px}
+#cmpStrip{padding:5px 10px;background:rgba(0,0,0,.3);font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer}
+#cmpStrip b{color:var(--ivory)}#cmpStrip b.mint{color:var(--mint)}
+/* table */
+#table{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-between;padding:10px 8px;overflow:hidden}
+.zone{display:flex;flex-direction:column;align-items:center;gap:6px;position:relative;z-index:1}
+.zlabel{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.hands{display:flex;gap:10px;justify-content:center;align-items:flex-end;max-width:100%;overflow-x:auto;padding:4px 6px}
+.hand{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 10px;border-radius:14px;border:1.5px dashed transparent;flex:0 0 auto}
+.hand.cur{border-color:var(--brass);background:rgba(214,173,79,.08)}
+.cards{display:flex}
+.card{width:calc(62px*var(--cs,1));height:calc(90px*var(--cs,1));border-radius:8px;background:var(--ivory);color:#1a1a1a;position:relative;margin-left:calc(-38px*var(--cs,1));
+  font-family:Georgia,"Times New Roman",serif;box-shadow:0 2px 6px rgba(0,0,0,.45)}
+.card:first-child{margin-left:0}
+.card.red{color:var(--ruby)}
+.card .rk{position:absolute;top:5px;left:6px;font-weight:700;font-size:calc(21px*var(--cs,1));line-height:1}
+.card .st{position:absolute;top:calc(29px*var(--cs,1));left:6px;font-size:calc(17px*var(--cs,1));line-height:1}
+.card .pip{position:absolute;right:7px;bottom:4px;font-size:calc(36px*var(--cs,1));line-height:1}
+.card.back{background:repeating-linear-gradient(45deg,#7b1d22 0 4px,#5c1419 4px 8px);border:3px solid var(--ivory)}
+.card .ghost{position:absolute;inset:auto 0 4px 0;text-align:center;font-size:13px;font-weight:700;color:#ffe9a8;text-shadow:0 0 4px #000}
+.card.new{opacity:0}
+#dock.busy .dockin{opacity:.55;pointer-events:none}
+#table{position:relative}
+#table.dealing .tot,#table.dealing .tag,#table.dealing #center .big,#table.dealing #center .sub{visibility:hidden}
+.shoeIcon{position:absolute;top:8px;right:10px;width:34px;height:46px;border-radius:6px;background:repeating-linear-gradient(45deg,#7b1d22 0 4px,#5c1419 4px 8px);border:2px solid var(--ivory);display:flex;align-items:flex-end;justify-content:center;font-size:8px;font-weight:700;color:#fff;padding-bottom:2px;box-shadow:3px 3px 0 rgba(0,0,0,.35);pointer-events:none}
+@keyframes deal{from{transform:translate(0,-110px) rotate(8deg);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.card.new{animation:none}}
+.tot{background:var(--ivory);color:#111;border-radius:999px;padding:1px 11px;font-weight:700;font-variant-numeric:tabular-nums}
+.tot small{font-weight:500;margin-left:4px;opacity:.6}
+.tag{font-size:13px;font-weight:700;padding:1px 9px;border-radius:999px;background:rgba(255,255,255,.1)}
+.tag.win,.tag.bj{background:rgba(134,227,148,.18);color:var(--good)}
+.tag.lose,.tag.bust{background:rgba(255,130,114,.18);color:var(--bad)}
+.betmark{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;padding:0 6px;border-radius:999px;
+  background:var(--brass);color:#2a1d05;font-weight:800;font-size:12px;border:3px dashed rgba(255,255,255,.55)}
+#center{text-align:center;min-height:46px;display:flex;flex-direction:column;justify-content:center;gap:2px}
+#center .big{font-family:Georgia,serif;font-size:21px}
+#center .sub{font-size:12.5px;color:var(--muted)}
+#adviceBar{margin:0 10px 6px;padding:6px 11px;border-radius:12px;font-size:12.5px;line-height:1.3;height:58px;overflow-y:auto;flex:0 0 58px;background:var(--panel);border:1px solid var(--line)}
+#adviceBar.idle{color:var(--muted)}#adviceBar.bad{border-color:var(--bad)}#adviceBar.good{border-color:var(--good)}
+#adviceBar b{color:var(--brass)}
+/* dock */
+#dock{background:var(--rail);border-top:2px solid var(--rail2);padding:10px 10px 12px;height:200px;flex:0 0 200px;overflow:hidden}
+.dockin{height:100%;display:flex;flex-direction:column;justify-content:space-between}
+.dockin.scroll{overflow-y:auto;justify-content:flex-start}
+.chips.off{opacity:.35;pointer-events:none}
+.acts5{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.acts5 .btn{min-height:46px;padding:0 2px;font-size:14px}
+.row{display:flex;gap:8px;align-items:center}
+.chips{display:flex;justify-content:space-between;margin-bottom:0}
+.chip{width:48px;height:48px;border-radius:50%;border:4px dashed rgba(255,255,255,.85);font-weight:800;font-size:14px;color:#fff;
+  box-shadow:inset 0 0 0 4px rgba(0,0,0,.18),0 3px 6px rgba(0,0,0,.5)}
+.btn{flex:1;min-height:46px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.06);font-weight:600}
+.btn.primary{background:var(--brass);color:#2a1d05;border-color:var(--brass);font-weight:800}
+.btn.ghost{background:none}
+.btn:disabled{opacity:.32}
+.btn.sm{min-height:34px;font-size:13px;flex:0 0 auto;padding:0 12px}
+.betline{display:flex;justify-content:space-between;align-items:center;margin-bottom:0}
+.betline .amt{font-family:Georgia,serif;font-size:24px}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+.acts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.acts .btn{min-height:50px}
+.acts .wide{grid-column:span 2}
+.hdr{display:flex;justify-content:space-between;color:var(--muted);font-size:12.5px;margin-bottom:8px}
+.others{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;padding:0 8px}
+.oth{background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:2px 7px;font-size:12px;font-family:Georgia,serif;white-space:nowrap}
+.oth .rd{color:#ff9d94}.oth.you{background:var(--brass);color:#2a1d05;font-weight:700;border-color:var(--brass)}
+input[type=text],select{padding:7px;border-radius:8px;border:1px solid var(--line);background:#0c0905;color:var(--ivory);font:inherit;min-width:0}
+#table{--cs:var(--fit,1)}
+.seatrow{display:flex;justify-content:center;align-items:flex-end;gap:3px;min-height:calc(235px*var(--cs,1));max-width:100%;margin:0 -4px}
+.seat.empty{min-width:calc(62px*var(--cs,1))}
+.eseat{width:calc(36px*var(--cs,1));height:calc(36px*var(--cs,1));border:1.5px dashed rgba(255,255,255,.22);border-radius:50%;margin-top:calc(30px*var(--cs,1))}
+.seat{--cs:calc(var(--fit,1)*var(--ss,.6));display:flex;flex-direction:column;align-items:center;gap:3px;flex:0 0 auto}
+.seat.you{--cs:calc(var(--fit,1)*var(--ss,.6)*1.12);background:rgba(214,173,79,.08);border:1px solid rgba(214,173,79,.45);border-radius:12px;padding:4px 3px}
+.seat .cards{flex-direction:column;align-items:center}
+.seat .card{margin-left:0;margin-top:calc(-58px*var(--cs,1))}
+.seat .card:first-child{margin-top:0}
+.seat .tot{font-size:12px;padding:0 7px}
+.seat .tag{font-size:11px;padding:0 6px}
+.betmark.sm{min-width:24px;height:24px;font-size:10px;border-width:2px;padding:0 3px}
+.shands{display:flex;gap:6px;align-items:flex-start}
+.shand{display:flex;flex-direction:column;align-items:center;gap:3px;padding:2px;border-radius:8px}
+.shand.cur{outline:1.5px dashed var(--brass)}
+.slabel{font-size:10px;color:var(--muted)}.seat.you .slabel{color:var(--brass);font-weight:700}
+.bases{display:flex;justify-content:space-between;width:100%;padding:0 12px;font-size:10px;color:var(--muted)}
+#center{position:relative}
+.feltprint{position:absolute;left:4%;width:92%;top:50%;transform:translateY(-52%);pointer-events:none;z-index:0;overflow:visible;transition:opacity .2s}
+#center.has .feltprint{opacity:.25}
+#center .big,#center .sub{position:relative;z-index:1}
+.felt{position:relative;width:100%;margin-top:6px}
+.sp{position:absolute}
+.spot{position:absolute;left:50%;top:-5px;width:calc(62px*var(--cs,1) + 10px);height:calc(90px*var(--cs,1) + 10px);border:1.5px solid rgba(255,255,255,.4);border-radius:calc(14px*var(--cs,1) + 4px);display:flex;justify-content:center;align-items:flex-start;padding-top:2px}
+.spot.you{border-color:var(--brass);border-width:2px;background:rgba(214,173,79,.08)}
+.spn{font-size:9px;color:rgba(255,255,255,.5);line-height:1}.spot.you .spn{color:var(--brass);font-weight:700}
+.spcards{position:relative;display:flex;gap:4px;justify-content:center;align-items:flex-start}
+.spchip{position:absolute;right:-16px;top:-16px;z-index:3}
+.basetag{position:absolute;top:-19px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:700;color:var(--brass);white-space:nowrap;z-index:3}
+.sp .cards{flex-direction:column;align-items:center}
+.sp .card{margin-left:0;margin-top:calc(-58px*var(--cs,1))}
+.sp .card:first-child{margin-top:0}
+.sp .tot{font-size:11px;padding:0 6px;margin-top:3px}
+.rulesline{font-size:10.5px;color:var(--muted);text-align:center;line-height:1.3;padding:0 6px}
+/* sheet */
+#sheet{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--rail);z-index:20;display:none;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);max-width:560px;margin:0 auto}
+#sheet.open{display:flex}
+#tabs{display:flex;gap:6px;overflow-x:auto;padding:10px;border-bottom:1px solid var(--rail2);flex:0 0 auto}
+#tabs button{flex:0 0 auto;border:1px solid var(--line);background:none;border-radius:999px;padding:6px 13px;color:var(--muted);font-size:13.5px}
+#tabs button.on{background:var(--brass);color:#2a1d05;border-color:var(--brass);font-weight:700}
+#tabs .x{margin-left:auto;color:var(--ivory)}
+#sbody{flex:1;overflow-y:auto;padding:12px 14px 30px}
+#sbody h3{margin:18px 0 8px;font-family:Georgia,serif;font-size:17px;font-weight:600;color:var(--brass)}
+#sbody h3:first-child{margin-top:2px}
+#sbody p{margin:6px 0}
+.set{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.set .l{flex:1;min-width:0}.set .l small{display:block;color:var(--muted);font-size:12px}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:0 0 auto}
+.seg button{background:none;border:0;padding:7px 11px;color:var(--muted);font-size:13.5px}
+.seg button.on{background:var(--brass);color:#2a1d05;font-weight:700}
+.tog{width:46px;height:26px;border-radius:99px;background:#3a3a36;border:0;position:relative;flex:0 0 auto}
+.tog::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#ddd;transition:left .15s}
+.tog.on{background:var(--brass)}.tog.on::after{left:23px;background:#2a1d05}
+input[type=range]{width:100%;accent-color:var(--brass)}
+input[type=number]{width:96px;padding:7px;border-radius:8px;border:1px solid var(--line);background:#0c0905;color:var(--ivory);font:inherit;text-align:right}
+table.t{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:13px}
+table.t th,table.t td{padding:6px 4px;text-align:center;border-bottom:1px solid rgba(255,255,255,.07)}
+table.t th{color:var(--muted);font-weight:500}
+table.t td:first-child,table.t th:first-child{text-align:left}
+.cht td{padding:3px 1px!important}
+.cht .c{display:block;border-radius:5px;padding:5px 0;font-weight:800;font-size:12px;color:#0b0b0b}
+.cH{background:#86e394}.cS{background:#ff8272}.cD{background:#f7d154}.cDs{background:#72e3c8}.cP{background:#7fb0ff}.cR{background:#d9a3f0}
+.card2{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 12px;margin:8px 0}
+.stat4{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat4 .card2{margin:0}.stat4 b{font-family:Georgia,serif;font-size:26px;display:block}
+.good{color:var(--good)}.bad{color:var(--bad)}.mint{color:var(--mint)}
+.bar{height:8px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;background:var(--mint)}
+.cardlist{display:flex;flex-wrap:wrap;gap:4px}
+.cardlist span{background:var(--ivory);color:#111;border-radius:5px;padding:2px 6px;font-weight:700;font-family:Georgia,serif;font-size:13px}
+.cardlist span.r{color:var(--ruby)}
+/* modal */
+.warnbox h4{margin:0 0 4px;font-family:Georgia,serif;font-size:17px;color:var(--bad)}.warnbox p{margin:4px 0 8px;font-size:13.5px}
+#modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.66);z-index:40;display:none;align-items:center;justify-content:center;padding:20px}
+#modal.open{display:flex}
+#mbox{background:var(--rail);border:1.5px solid var(--bad);border-radius:16px;padding:16px;max-width:380px;width:100%}
+#mbox h4{margin:0 0 6px;font-family:Georgia,serif;font-size:19px;color:var(--bad)}
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);
+  padding:8px 14px;border-radius:99px;font-size:13px;z-index:50;display:none;max-width:90%;text-align:center}
+.adminbanner{font-size:11px;color:#2a1d05;background:var(--brass);padding:1px 8px;border-radius:99px;font-weight:700}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div id="mach"></div>
+    <div id="pills"></div>
+    <button id="menuBtn" data-a="menu" aria-label="Menu">☰</button>
+  </div>
+  <div id="cmpStrip" data-a="opencmp" style="display:none"></div>
+  <div id="table"><div id="boot" style="margin:auto;padding:20px;text-align:center;color:#8db5a4;font:14px system-ui,sans-serif">Loading Blackjack ASM - CSM Sim…<br>If this message stays on screen, the app script did not start.</div></div>
+  <div id="adviceBar" style="display:none"></div>
+  <div id="dock"></div>
+</div>
+<div id="sheet"><div id="tabs"></div><div id="sbody"></div></div>
+<div id="modal"><div id="mbox"></div></div>
+<div id="toast"></div>
+
+<div id="errbox" style="display:none;position:fixed;left:0;right:0;top:0;z-index:99;background:#7a1010;color:#fff;font:12px/1.3 monospace;padding:8px;white-space:pre-wrap"></div>
+<script>window.addEventListener('error',function(e){var b=document.getElementById('errbox');if(!b)return;b.style.display='block';b.textContent='Error: '+(e.message||'unknown')+' (line '+(e.lineno||'?')+')';});</script>
+<script>
+'use strict';
+/* ============ basics ============ */
+const RANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'], SUITS=['♠','♥','♦','♣'];
+const $=s=>document.querySelector(s);
+const val=r=>r==='A'?11:(r==='10'||r==='J'||r==='Q'||r==='K')?10:+r;
+const hiv=r=>{const v=val(r);return v>=10?-1:v<=6?1:0;};            // Hi-Lo
+const isRed=c=>c.s==='♥'||c.s==='♦';
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}},
+             set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
+const money=n=>(n<0?'-':'')+'$'+Math.abs(n).toLocaleString(undefined,{maximumFractionDigits:2});
+const sgn=(x,d=1)=>(x>=0?'+':'')+x.toFixed(d);
+function total(cards){let t=0,a=0;for(const c of cards){t+=val(c.r);if(c.r==='A')a++;}while(t>21&&a>0){t-=10;a--;}return{t,soft:a>0};}
+
+const DEF={mode:'csm',decks:6,csmTray:52,pen:75,bj:1.5,sur:0,h17:0,das:1,dbl:'any',dsoft:1,maxHands:4,rsa:0,hsa:0,
+  nohole:0,obo:1,coach:1,dev:0,showCount:1,admin:0,spreadV:2,maxSpread:8,others:0,tableSeats:7,mySeat:4,o2sFront:16,o2sComp:38,o2sCap:9,o2sTray:1,countMode:'hilo',microRounds:1,microDecks:1.5,dealSpeed:2,hours:3,hph:120,bankroll:10000,minBet:25,maxBet:500,kelly:0.5,spread:'scale'};
+const _sc=store.get('bjcsm_cfg',{});
+let cfg=Object.assign({},DEF,_sc);
+if(_sc.spreadV!==2)cfg.spread='scale';
+if(_sc.mySeat===undefined)cfg.mySeat=_sc.seat==='first'?1:4;
+let state=Object.assign({bank:cfg.bankroll,bet:cfg.minBet,lastBet:cfg.minBet,net:0,hands:0},store.get('bjcsm_state',{}));
+let stats=store.get('bjcsm_stats',{days:{}});
+let results=store.get('bjcsm_results',{days:{}});
+
+/* ============ shuffler / machine ============ */
+let uid=0;
+function buildDecks(n){const a=[];for(let d=0;d<n;d++)for(const s of SUITS)for(const r of RANKS)a.push({r,s,id:++uid});return a;}
+function rnd(n,fast){if(fast)return Math.floor(Math.random()*n);
+  const a=new Uint32Array(1),lim=Math.floor(4294967296/n)*n;let x;do{crypto.getRandomValues(a);x=a[0];}while(x>=lim);return x%n;}
+function shuffle(a,fast){for(let i=a.length-1;i>0;i--){const j=rnd(i+1,fast),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+class Machine{
+  constructor(fast,mode){this.fast=!!fast;this.mode=mode||null;this.shuffles=0;this.fresh();}
+  get total(){return cfg.decks*52;}
+  get md(){return this.mode||cfg.mode;}
+  get left(){return this.md==='o2s'?this.shoe.length+this.cc:this.shoe.length;}
+  stock(){return this.md==='o2s'?this.shoe.concat(...this.comp):this.shoe;}
+  fresh(){
+    const all=shuffle(buildDecks(cfg.decks),this.fast);
+    this.tray=[];this.rc=0;this.dealt=0;this.exq=[];this.cur=0;this.curN=0;this.hist=[];
+    if(this.md==='o2s'){
+      this.comp=Array.from({length:cfg.o2sComp},()=>[]);this.cc=0;this.shoe=[];
+      for(const c of all)this.put(c);
+      this.refill();
+    }else this.shoe=all;
+  }
+  /* One2Six model: cards go in one at a time to a random compartment, whole compartments are released into a front shoe */
+  cap(){return Math.max(cfg.o2sCap,Math.ceil(this.total/cfg.o2sComp)+2);}
+  put(c){
+    const n=this.comp.length,cp=this.cap();let i=rnd(n,this.fast),g=0;
+    while(this.comp[i].length>=cp&&g++<n)i=(i+1)%n;
+    this.comp[i].push(c);this.cc++;
+  }
+  refill(){
+    const F=cfg.o2sFront;
+    while(this.shoe.length<F&&this.cc>0){
+      const n=this.comp.length;let i=rnd(n,this.fast),g=0;
+      while(!this.comp[i].length&&g++<n)i=(i+1)%n;
+      const grp=this.comp[i];this.comp[i]=[];this.cc-=grp.length;
+      this.shoe.unshift(...grp.reverse());          // first card in is dealt first
+    }
+  }
+  draw(){
+    if(this.md==='o2s'){
+      if(!this.shoe.length)this.refill();
+      if(!this.shoe.length){for(const c of this.tray)this.put(c);this.tray=[];this.rc=0;this.exq=[];this.refill();if(!this.shoe.length)this.fresh();}
+      const c=this.shoe.pop();this.dealt++;
+      while(this.exq.length&&this.exq[0][1]<=this.dealt)this.rc-=this.exq.shift()[0];
+      if(this.shoe.length<cfg.o2sFront)this.refill();
+      return c;
+    }
+    if(!this.shoe.length){if(this.tray.length)this.merge();else this.fresh();}
+    this.dealt++;return this.shoe.pop();
+  }
+  see(c){
+    const h=hiv(c.r);this.rc+=h;this.cur+=h;this.curN++;
+  }
+  merge(){this.shoe=shuffle(this.shoe.concat(this.tray),this.fast);this.tray=[];this.rc=0;}
+  micro(){const R=Math.max(1,cfg.microRounds||1),k=this.curN===0?R:R-1;let t=this.cur;for(let i=0;i<k&&i<this.hist.length;i++)t+=this.hist[this.hist.length-1-i];return t;}
+  shownRC(){return cfg.countMode==='micro'?this.micro():this.rc;}
+  tc(){
+    if(cfg.countMode==='micro')return this.micro()/(cfg.microDecks||1.5);
+    return this.rc/Math.max(0.5,(this.left-(this.md==='o2s'?this.exq.length:0))/52);
+  }
+  cut(){return Math.floor(this.total*cfg.pen/100);}
+  endRound(cards){
+    this.hist.push(this.cur);if(this.hist.length>6)this.hist.shift();this.cur=0;this.curN=0;
+    const mode=this.md;
+    if(mode==='o2s'){
+      this.tray.push(...cards);                                   // dealers decide when the tray goes in; the manual says after every hand
+      if(this.tray.length>=Math.max(1,cfg.o2sTray)){
+        const t=this.tray;this.tray=[];
+        for(const c of t){this.put(c);this.exq.push([hiv(c.r),this.dealt+cfg.o2sFront]);}   // not dealable until the front shoe has been refilled past it
+        this.shuffles++;return 'o2s';
+      }
+      return null;
+    }
+    this.tray.push(...cards);
+    if(mode==='csm'){
+      if(this.tray.length>=Math.max(1,cfg.csmTray)||this.shoe.length<15){this.merge();this.shuffles++;return 'csm';}
+    }else if(this.dealt>=this.cut()||this.shoe.length<15){this.fresh();this.shuffles++;return 'asm';}
+    return null;
+  }
+}
+
+/* ============ rules / round engine (generator, shared by UI + simulator) ============ */
+function legalActs(r,h){
+  const two=h.cards.length===2,{t,soft}=total(h.cards),L=['S'];
+  const c0=h.cards[0],c1=h.cards[1];
+  const pairOK=two&&(c0.r===c1.r||(val(c0.r)===10&&val(c1.r)===10));
+  const canSplit=pairOK&&r.hands.length<cfg.maxHands&&r.spare>=h.bet;
+  if(h.aceLock){if(canSplit&&cfg.rsa&&c0.r==='A')L.push('P');return L;}
+  L.push('H');
+  if(two&&r.spare>=h.bet&&(!h.split||cfg.das)){
+    let ok=cfg.dbl==='any'?true:cfg.dbl==='9-11'?(!soft&&t>=9&&t<=11):(!soft&&t>=10&&t<=11);
+    if(soft&&!cfg.dsoft)ok=false;
+    if(ok)L.push('D');
+  }
+  if(canSplit&&!(c0.r==='A'&&h.split&&!cfg.rsa))L.push('P');
+  if(cfg.sur&&two&&!h.split&&r.hands.length===1)L.push('R');
+  return L;
+}
+const nums=(a,b)=>Array.from({length:b-a+1},(_,i)=>[a+i,String(a+i)]);
+function seatPlan(){
+  const T=Math.min(7,Math.max(2,cfg.tableSeats||7)),my=Math.min(T,Math.max(1,cfg.mySeat||4)),k=Math.min(T-1,cfg.others||0),n=k+1;
+  let occ=cfg.occ;
+  const ok=Array.isArray(occ)&&occ.length===n&&occ.includes(my)&&occ.every((x,i)=>x>=1&&x<=T&&(i===0||x>occ[i-1]));
+  if(!ok){const av=[];for(let i=1;i<=T;i++)if(i!==my)av.push(i);shuffle(av,true);occ=av.slice(0,k).concat(my).sort((a,b)=>a-b);cfg.occ=occ;}
+  return{T,n,occ,my,others:occ.filter(x=>x!==my),before:occ.indexOf(my)};
+}
+function roundCards(r){return[...r.hands.flatMap(h=>h.cards),...r.others.flatMap(s=>s.hands.flatMap(h=>h.cards)),...r.dealer];}
+const cpr=()=>2.8+2.7*(1+(cfg.others||0));          // average cards used per round
+function* roundGen(m,wallet,bet){
+  const r={dealer:[],hole:null,hands:[],others:[],before:0,spare:wallet-bet,ins:0,insNet:0,msg:'',net:0};
+  let seqc=0;const D=()=>{const c=m.draw();c.seq=++seqc;return c;};
+  const P=()=>{const c=D();m.see(c);return c;};
+  const reveal=()=>{if(r.hole){r.dealer.push(r.hole);m.see(r.hole);r.hole=null;}};
+  const fin=()=>{r.net=r.hands.reduce((s,h)=>s+h.net,0)+r.insNet;};
+  const mk=b=>({cards:[],bet:b,base:b,split:false,aceLock:false,sur:false,done:false,res:null,net:0});
+  const live=h=>{const t=total(h.cards).t;return !h.sur&&t<=21&&!(h.cards.length===2&&t===21&&!h.split);};
+  const apply=(R,i,a)=>{
+    const h=R.hands[i];
+    if(a==='S')h.done=true;
+    else if(a==='H')h.cards.push(P());
+    else if(a==='D'){R.spare-=h.bet;h.bet*=2;h.cards.push(P());h.done=true;}
+    else if(a==='R'){h.sur=true;h.done=true;}
+    else if(a==='P'){
+      R.spare-=h.bet;const c=h.cards.pop(),aces=c.r==='A';
+      const nh=mk(h.bet);nh.base=h.base;nh.cards=[c];nh.split=true;nh.aceLock=aces&&!cfg.hsa;
+      h.split=true;h.aceLock=aces&&!cfg.hsa;R.hands.splice(i+1,0,nh);h.cards.push(P());
+    }
+  };
+  const h0=mk(bet);r.hands.push(h0);
+  const plan=seatPlan(),nb=plan.others.length,before=plan.before;r.before=before;r.plan=plan;
+  for(let i=0;i<nb;i++)r.others.push({hands:[mk(1)],seat:plan.others[i]});
+  const order=[...r.others.slice(0,before),h0,...r.others.slice(before)];
+  const hd=s=>s===h0?h0:s.hands[0];
+  for(const s of order)hd(s).cards.push(P());
+  r.dealer.push(P());
+  for(const s of order)hd(s).cards.push(P());
+  r.hole=cfg.nohole?null:D();r.holeId=r.hole?r.hole.id:null;
+  const up=r.dealer[0],upv=val(up.r),pBJ=total(h0.cards).t===21;
+  if(upv===11&&!cfg.nohole){const want=yield{kind:'insurance',r};if(want&&r.spare>=bet/2){r.ins=bet/2;r.spare-=r.ins;}}
+  if(!cfg.nohole&&upv>=10&&total([up,r.hole]).t===21){
+    reveal();h0.net=pBJ?0:-bet;h0.res=pBJ?'push':'lose';r.msg='Dealer has blackjack';if(r.ins)r.insNet=2*r.ins;fin();return r;
+  }
+  if(r.ins)r.insNet=-r.ins;
+  if(pBJ&&nb===0){
+    if(cfg.nohole&&upv>=10){r.dealer.push(P());if(total(r.dealer).t===21){h0.net=0;h0.res='push';r.msg='Both have blackjack';fin();return r;}}
+    reveal();h0.net=bet*cfg.bj;h0.res='bj';r.msg='Blackjack!';fin();return r;
+  }
+  if(pBJ){h0.net=bet*cfg.bj;h0.res='bj';h0.done=true;r.msg='Blackjack!';}
+  const playBot=seat=>{
+    const rb={hands:seat.hands,spare:1e9};
+    for(let i=0;i<rb.hands.length;i++){
+      const h=rb.hands[i];if(h.cards.length===1)h.cards.push(P());
+      while(!h.done){
+        if(total(h.cards).t>=21){h.done=true;break;}
+        const L=legalActs(rb,h).filter(x=>x!=='R');
+        if(L.length===1){h.done=true;break;}
+        apply(rb,i,advise(h.cards,r.dealer[0],L,0,false).act);
+      }
+    }
+  };
+  for(const s of r.others.slice(0,before))playBot(s);
+  for(let i=0;i<r.hands.length;i++){
+    const h=r.hands[i];r.cur=i;
+    if(h.cards.length===1)h.cards.push(P());
+    while(!h.done){
+      if(total(h.cards).t>=21){h.done=true;break;}
+      const L=legalActs(r,h);
+      if(L.length===1){h.done=true;break;}
+      const a=yield{kind:'action',hand:i,legal:L,r};
+      apply(r,i,a);
+    }
+  }
+  for(const s of r.others.slice(before))playBot(s);
+  reveal();r.cur=-1;
+  if(cfg.nohole&&pBJ&&upv>=10&&r.dealer.length===1){r.dealer.push(P());}
+  if(r.hands.some(live)||r.others.some(s=>s.hands.some(live))){
+    for(;;){const d=total(r.dealer);if(d.t<17||(d.t===17&&d.soft&&cfg.h17)){r.dealer.push(P());}else break;}
+  }
+  const dt=total(r.dealer).t,dBust=dt>21,dBJ=!!cfg.nohole&&r.dealer.length===2&&dt===21;if(dBJ)r.msg='Dealer blackjack';
+  for(const h of r.hands){
+    if(h.res==='bj'){if(dBJ){h.net=0;h.res='push';}continue;}
+    const pt=total(h.cards).t;
+    if(h.sur){h.net=-h.bet/2;h.res='sur';}
+    else if(pt>21){h.net=-h.bet;h.res='bust';}
+    else if(dBJ){h.net=-(cfg.obo?h.base:h.bet);h.res='lose';}
+    else if(dBust||pt>dt){h.net=h.bet;h.res='win';}
+    else if(pt===dt){h.net=0;h.res='push';}
+    else{h.net=-h.bet;h.res='lose';}
+  }
+  fin();return r;
+}
+
+/* ============ basic strategy + index plays ============ */
+const ACT={S:'Stand',H:'Hit',D:'Double',P:'Split',R:'Surrender'};
+function shouldSplit(pv,u){
+  if(pv===11||pv===8)return true;
+  if(pv===9)return(u>=2&&u<=6)||u===8||u===9;
+  if(pv===7)return u<=7;
+  if(pv===6)return cfg.das?(u>=2&&u<=6):(u>=3&&u<=6);
+  if(pv===4)return !!cfg.das&&(u===5||u===6);
+  if(pv===3||pv===2)return cfg.das?(u>=2&&u<=7):(u>=4&&u<=7);
+  return false;
+}
+function hardAct(t,u){
+  if(t>=17)return'S';
+  if(t>=13)return u<=6?'S':'H';
+  if(t===12)return(u>=4&&u<=6)?'S':'H';
+  if(t===11)return(u<=10||cfg.h17||cfg.decks<=2)?'D':'H';
+  if(t===10)return u<=9?'D':'H';
+  if(t===9)return(u>=3&&u<=6)?'D':'H';
+  return'H';
+}
+function softAct(t,u){
+  if(t>=20)return'S';
+  if(t===19)return(cfg.h17&&u===6)?'Ds':'S';
+  if(t===18){if(u<=6)return(u===2&&!cfg.h17)?'S':'Ds';if(u<=8)return'S';if(u===11)return cfg.h17?'H':'S';return'H';}
+  if(t===17)return(u>=3&&u<=6)?'D':'H';
+  if(t===16||t===15)return(u>=4&&u<=6)?'D':'H';
+  if(t===14||t===13)return(u>=5&&u<=6)?'D':'H';
+  return'H';
+}
+const DEV=[
+ {t:16,u:10,act:'S',cmp:'ge',i:0},{t:15,u:10,act:'S',cmp:'ge',i:4},{t:16,u:9,act:'S',cmp:'ge',i:5},
+ {t:12,u:3,act:'S',cmp:'ge',i:2},{t:12,u:2,act:'S',cmp:'ge',i:3},
+ {t:10,u:10,act:'D',cmp:'ge',i:4},{t:10,u:11,act:'D',cmp:'ge',i:4},{t:11,u:11,act:'D',cmp:'ge',i:1},
+ {t:9,u:2,act:'D',cmp:'ge',i:1},{t:9,u:7,act:'D',cmp:'ge',i:3},{t:8,u:6,act:'D',cmp:'ge',i:2},
+ {t:12,u:4,act:'H',cmp:'lt',i:0},{t:12,u:5,act:'H',cmp:'lt',i:-2},{t:12,u:6,act:'H',cmp:'lt',i:-1},
+ {t:13,u:2,act:'H',cmp:'lt',i:-1},{t:13,u:3,act:'H',cmp:'lt',i:-2}];
+const BUST_S17={2:35,3:37,4:40,5:42,6:42,7:26,8:24,9:23,10:21,11:11};
+const HITBUST={12:31,13:39,14:56,15:58,16:62,17:69,18:77,19:85,20:92};
+const hitBust=t=>t<=11?0:(HITBUST[t]||100);
+function advise(cards,up,L,tc,dev){
+  const{t,soft}=total(cards),u=val(up.r),two=cards.length===2,can=a=>L.includes(a);
+  const pv=(two&&val(cards[0].r)===val(cards[1].r))?val(cards[0].r):0;
+  const kind=pv?'pair':soft?'soft':'hard';
+  // --- basic ---
+  let raw,act;
+  if(can('R')&&pv===8&&cfg.h17&&u===11)raw=act='R';
+  else if(can('R')&&pv!==8&&!soft&&((t===16&&(u===10||u===11||(u===9&&cfg.decks>=4)))||(t===15&&(u===10||(cfg.h17&&u===11)))||(t===17&&cfg.h17&&u===11)))raw=act='R';
+  else if(can('P')&&shouldSplit(pv,u))raw=act='P';
+  else{
+    raw=soft?softAct(t,u):hardAct(t,u);act=raw;
+    if(raw==='D')act=can('D')?'D':'H';
+    else if(raw==='Ds')act=can('D')?'D':'S';
+  }
+  let enhc=false;
+  if(cfg.nohole&&!cfg.obo&&(u===10||u===11)){
+    if(act==='D'&&!soft){act='H';enhc=true;}
+    else if(act==='P'&&(pv===8||pv===11)){act='H';enhc=true;}
+  }
+  const why=()=>enhc?`No hole card and a dealer blackjack takes all your bets. With the dealer showing a ${u===11?'Ace':'10'}, doubling or splitting risks extra money before the dealer checks, so just hit.`:explain(act,raw,t,soft,pv,u);
+  // --- index plays (Hi-Lo) ---
+  if(dev&&act!=='R'&&(pv===0||pv===10)){
+    if(pv===10&&can('P')&&((u===5&&tc>=5)||(u===6&&tc>=4))){
+      const i=u===5?5:4;
+      return{act:'P',raw:'P',kind,dev:true,why:()=>`Index play: at a true count of +${i} or higher the deck is so rich in tens that splitting 10s vs a ${u} beats standing on 20.`};
+    }
+    if(!soft){
+      for(const d of DEV){
+        if(d.t!==t||d.u!==u)continue;
+        const hit=d.cmp==='ge'?tc>=d.i:tc<d.i;
+        if(!hit||d.act===act)continue;
+        if(d.act==='D'&&!can('D'))continue;
+        return{act:d.act,raw:d.act,kind,dev:true,why:()=>d.cmp==='ge'
+          ?`Index play: at a true count of ${sgn(d.i,0)} or higher the shoe is rich in 10s/aces, which makes ${ACT[d.act].toLowerCase()} better than the basic play.`
+          :`Index play: below a true count of ${sgn(d.i,0)} the shoe is rich in small cards, so ${ACT[d.act].toLowerCase()} beats the basic play.`};
+      }
+    }
+  }
+  return{act,raw,kind,dev:false,why};
+}
+function explain(act,raw,t,soft,pv,u){
+  const un=u===11?'Ace':u,b=u===11&&cfg.h17?17:BUST_S17[u];
+  let pre='';
+  if(raw==='D'&&act==='H')pre="Doubling isn't allowed here, so hit. ";
+  if(raw==='Ds'&&act==='S')pre="Doubling isn't allowed here, so stand. ";
+  if(act==='R')return`This hand wins under ~25% against a dealer ${un}. Surrendering costs half your bet; playing on loses more than that on average.`;
+  if(act==='P'){
+    if(pv===11)return'Aces are the best starting hand. A soft 12 is weak, but two hands starting on 11 are strong.';
+    if(pv===8)return'Two 8s make 16, the worst total. Splitting turns one losing 16 into two hands starting from a decent 8.';
+    if(pv===9)return`18 is only so-so against a ${un}. Two hands starting at 9 earn more than one 18.`;
+    return`The dealer's ${un} is weak (busts about ${b}%). Splitting ${pv}s puts more money out while you have the edge.`;
+  }
+  if(act==='D'){
+    if(soft)return`Soft ${t} can't bust on one card and the dealer's ${un} is weak (busts about ${b}%). Double up.`;
+    if(t===11)return"11 can't bust and 31% of cards are 10-value, making 21. You're a favorite, so get more money in.";
+    if(t===10)return`10 becomes 20 with any 10-value card and the dealer's ${un} is the weaker side. Double.`;
+    return`A 9 is a favorite against a dealer ${un} (busts about ${b}%). Double for value.`;
+  }
+  if(act==='S'){
+    if(pv===10)return'20 is the second-best hand. Never break it up.';
+    if(pv===9)return`Your 18 is a favorite against a ${un}. Against a 7 the dealer mostly makes 17, and against 10/A splitting loses more than standing.`;
+    if(soft&&t>=19)return`Soft ${t} is a strong hand. Take it.`;
+    if(soft)return pre+`Soft ${t} is already ahead of most of the dealer's ${un} outcomes; hitting rarely improves it enough.`;
+    if(t>=17)return`A hard ${t} is a made hand. Hitting would bust ${hitBust(t)}% of the time.`;
+    return pre+`The dealer's ${un} busts about ${b}% of the time. Let them bust. Hitting ${t} would bust you ${hitBust(t)}%.`;
+  }
+  // hit
+  if(soft)return pre+`Soft ${t} can't bust on one card and is too weak against the dealer's ${un}. Improve it.`;
+  if(t<=11)return pre+`${t} can't bust and is too low to stand on.`;
+  if(t===12&&(u===2||u===3))return`Dealer busts only about ${b}% against a ${un}. With 12, hitting is slightly better than standing.`;
+  return`The dealer's ${un} makes a hand about ${100-b}% of the time. Standing on ${t} loses more often, so take the ${hitBust(t)}% bust risk.`;
+}
+function insuranceAdvice(tc,dev){
+  const take=!!dev&&tc>=3;
+  return{take,why:take
+    ?'Count-based: at a true count of +3 or higher about a third of the remaining cards are tens, so insurance (pays 2:1) becomes profitable.'
+    :'Insurance pays 2:1 but wins only ~31% of the time in a fresh deck (needs 33%). It costs you about 7% per dollar. Decline, unless you are counting and the true count is +3 or higher.'};
+}
+
+/* ============ edge / bet spread ============ */
+function edgeParts(c){
+  c=c||cfg;const P=[['Base: 6 decks, S17, DAS, 3:2, double any two',0.46]],add=(l,v)=>{if(v)P.push([l,v]);};
+  add('Dealer hits soft 17',c.h17?0.22:0);
+  add('No double after split',c.das?0:0.14);
+  add('Late surrender',c.sur?-0.08:0);
+  add(`${c.decks} deck${c.decks>1?'s':''} instead of 6`,{1:-0.48,2:-0.19,4:-0.06,6:0,8:0.02}[c.decks]);
+  add('Blackjack pays 6:5',c.bj<1.5?1.39:0);
+  add(`Double only on ${c.dbl==='9-11'?'9–11':'10–11'}`,c.dbl==='9-11'?0.28:c.dbl==='10-11'?0.18:0);
+  add('No soft doubling',(!c.dsoft&&c.dbl==='any')?0.14:0);
+  add('No hole card',c.nohole?(c.obo?0.11:0.45):0);
+  add('Resplit aces',c.rsa?-0.03:0);
+  add('Hit split aces',c.hsa?-0.17:0);
+  return P;
+}
+function houseEdge(c){return edgeParts(c).reduce((s,p)=>s+p[1],0);}
+const edgeAt=tc=>-houseEdge()+0.5*tc;                   // % per hand
+function suggestBet(tc,bank){
+  const mn=cfg.minBet,mx=cfg.maxBet;let b;
+  if(cfg.spread==='ramp'){const u=tc<2?1:tc<3?2:tc<4?4:tc<5?6:8;b=mn*u;}
+  else if(cfg.spread==='scale'||(cfg.countMode==='micro'&&cfg.spread==='kelly')){const be=houseEdge()/0.5,M=cfg.maxSpread||8,f=tc<=be?0:Math.min(1,(tc-be)/Math.max(1,5-be));b=mn*Math.round(1+f*(M-1));}
+  else{const e=edgeAt(tc)/100;b=e<=0?mn:bank*cfg.kelly*e/1.3;}
+  b=Math.round(b/5)*5;return Math.min(mx,Math.max(mn,b));
+}
+
+/* ============ stats ============ */
+const pad=n=>String(n).padStart(2,'0');
+const dayKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+function record(ok,cat,hint){
+  const k=dayKey(new Date());
+  const d=stats.days[k]||(stats.days[k]={n:0,ok:0,hint:0,cat:{}});
+  if(hint){d.hint++;}else{
+    d.n++;if(ok)d.ok++;
+    const c=d.cat[cat]||(d.cat[cat]=[0,0]);c[0]++;if(ok)c[1]++;
+    sess.n++;if(ok)sess.ok++;
+  }
+  store.set('bjcsm_stats',stats);
+}
+function aggregate(fromKey){
+  const o={n:0,ok:0,hint:0,cat:{},cnt:[0,0,0]};
+  for(const[k,d]of Object.entries(stats.days)){
+    if(fromKey&&k<fromKey)continue;
+    o.n+=d.n;o.ok+=d.ok;o.hint+=d.hint||0;if(d.cnt){o.cnt[0]+=d.cnt[0];o.cnt[1]+=d.cnt[1];o.cnt[2]+=d.cnt[2];}
+    for(const[c,v]of Object.entries(d.cat)){const x=o.cat[c]||(o.cat[c]=[0,0]);x[0]+=v[0];x[1]+=v[1];}
+  }
+  return o;
+}
+function recordResult(rr){
+  const k=dayKey(new Date()),d=results.days[k]||(results.days[k]={h:0,w:0,l:0,p:0,bj:0,net:0,wag:0});
+  for(const h of rr.hands){
+    d.h++;d.wag+=h.bet;
+    if(h.res==='win')d.w++;else if(h.res==='bj'){d.w++;d.bj++;}
+    else if(h.res==='push')d.p++;else d.l++;
+  }
+  d.net=Math.round((d.net+rr.net)*100)/100;
+  store.set('bjcsm_results',results);
+}
+function aggRes(from,to){
+  const o={h:0,w:0,l:0,p:0,bj:0,net:0,wag:0};
+  for(const[k,d]of Object.entries(results.days)){
+    if(from&&k<from)continue;if(to&&k>to)continue;
+    for(const f of Object.keys(o))o[f]+=d[f]||0;
+  }
+  o.net=Math.round(o.net*100)/100;return o;
+}
+function periodKeys(){
+  const now=new Date(),wk=new Date(now);wk.setDate(now.getDate()-((now.getDay()+6)%7));
+  return{today:dayKey(now),week:dayKey(wk),month:`${now.getFullYear()}-${pad(now.getMonth()+1)}-01`,year:`${now.getFullYear()}-01-01`};
+}
+
+/* ============ game state / flow ============ */
+let m=new Machine(),gen=null,pending=null,r=null,phase='bet',pendingCards=null;
+let shadow=new Machine(false,'asm'),hist=[],warnHTML='';
+const _q=0;
+let busy=false,busyT=null,hudHold=null,curHoleId=null;
+let shown=new Set(),shownBack=new Set(),idxMap=new Map(),stag=0,decDone=false,hinted=false,warn=null,adviceMsg=null,sess={n:0,ok:0},peekUntil=0,sheetTab=null,confirmKey=null;
+
+function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2600);}
+function saveState(){store.set('bjcsm_state',state);}
+function saveCfg(){store.set('bjcsm_cfg',cfg);}
+function advanceShadow(n){
+  const cs=[];for(let i=0;i<n;i++){const c=shadow.draw();shadow.see(c);cs.push(c);}
+  const tcB=shadow.tc(),ev=shadow.endRound(cs);
+  hist.push({a:nextTc(),b:ev?0:tcB});if(hist.length>200)hist.shift();
+}
+function renderStrip(show){
+  const e=$('#cmpStrip');
+  if(cfg.mode==='asm'){e.style.display='none';return;}
+  e.style.display='flex';
+  e.innerHTML=`<span>As a ${cfg.decks}-deck shoe: running <b>${show?sgn(shadow.rc,0):'•••'}</b> · true <b style="color:#ff5fa8">${show?sgn(shadow.tc(),1):'•••'}</b> · ${Math.round(100*shadow.dealt/shadow.total)}% dealt</span><span>Compare ›</span>`;
+}
+function willReshuffle(){if(cfg.mode==='o2s')return false;const n=m.tray.length+(pendingCards?pendingCards.length:0);return cfg.mode==='csm'?(n>=Math.max(1,cfg.csmTray)||m.shoe.length<15):(m.dealt>=m.cut()||m.shoe.length<15);}
+const nextTc=()=>(phase==='result'&&willReshuffle())?0:m.tc();
+function committed(){if(!r)return 0;return r.hands.reduce((s,h)=>s+h.bet,0)+r.ins;}
+
+function deal(){
+  if(busy)return;
+  if(state.bet<cfg.minBet||state.bet>cfg.maxBet)return toast(`Bet must be ${money(cfg.minBet)}–${money(cfg.maxBet)}`);
+  if(state.bet>state.bank)return toast('Not enough bankroll for that bet');
+  state.lastBet=state.bet;shown.clear();shownBack.clear();adviceMsg=null;
+  gen=roundGen(m,state.bank,state.bet);step();
+}
+function step(inp){
+  if(cfg.dealSpeed)hudHold={rc:m.shownRC(),tc:m.tc(),shoe:m.left,net:state.net};
+  const res=gen.next(inp);decDone=false;hinted=false;
+  if(res.done){r=res.value;pending=null;phase='result';finish();}
+  else{pending=res.value;r=pending.r;phase=pending.kind==='insurance'?'ins':'act';}
+  render();
+}
+function finish(){
+  recordResult(r);state.bank+=r.net;state.net+=r.net;state.hands++;state.bet=Math.min(state.lastBet,state.bank);saveState();
+  pendingCards=roundCards(r);
+  if(cfg.mode!=='asm')advanceShadow(pendingCards.length);
+}
+function nextHand(mode){
+  if(busy)return;
+  const ev=m.endRound(pendingCards);pendingCards=null;r=null;gen=null;phase='bet';shown.clear();shownBack.clear();
+  if(ev==='csm')toast('Tray went back into the machine. Count reset to 0.');
+  if(ev==='asm')toast('Cut card reached. New shoe shuffled. Count reset.');
+  if(ev==='o2s'&&cfg.o2sTray>=26)toast('Dealer put the tray cards into the machine.');
+  if(state.bank<cfg.minBet){render();return;}
+  if(mode==='cur'){state.bet=Math.min(state.bet,state.bank);render();deal();return;}
+  if(mode==='same'){state.bet=Math.min(state.lastBet,state.bank);render();deal();return;}
+  state.bet=Math.min(state.lastBet,state.bank);render();
+}
+function curAdvice(){
+  const h=r.hands[pending.hand];
+  return advise(h.cards,r.dealer[0],pending.legal,m.tc(),cfg.dev);
+}
+function onAct(a){
+  if(busy)return;
+  if(!pending||pending.kind!=='action'||!pending.legal.includes(a))return;
+  const adv=curAdvice();
+  if(!decDone){decDone=true;if(hinted)record(0,0,true);else record(a===adv.act,adv.kind);}
+  if(a!==adv.act&&!hinted){
+    if(cfg.coach){warn={a,adv};openModal();return;}
+    adviceMsg={cls:'bad',html:`<b>Not basic strategy.</b> ${ACT[adv.act]} was correct. ${adv.why()}`};
+  }else if(a===adv.act&&!hinted){adviceMsg={cls:'good',html:`✓ ${ACT[a]}${adv.dev?' (index play)':''} is correct.`};}
+  else adviceMsg=null;
+  step(a);
+}
+function onIns(yes){
+  if(busy)return;
+  if(!pending||pending.kind!=='insurance')return;
+  const ia=insuranceAdvice(m.tc(),cfg.dev);
+  if(!decDone){decDone=true;if(hinted)record(0,0,true);else record(yes===ia.take,'ins');}
+  if(yes!==ia.take&&!hinted){
+    if(cfg.coach){warn={ins:yes,ia};openModal();return;}
+    adviceMsg={cls:'bad',html:`<b>Not basic strategy.</b> ${ia.take?'Take':'Decline'} insurance. ${ia.why}`};
+  }else adviceMsg=null;
+  step(yes);
+}
+function openModal(){
+  const w=warn;let html;
+  if(w.ia){
+    html=`<h4>Not basic strategy</h4><p>You chose to ${w.ins?'take':'decline'} insurance. Correct play: <b>${w.ia.take?'take':'decline'}</b>.</p><p class="muted">${w.ia.why}</p>
+    <div class="row"><button class="btn primary" data-a="wchange">Change my play</button><button class="btn" data-a="wplay">Keep mine</button></div>`;
+  }else{
+    html=`<h4>Not basic strategy</h4><p>You chose <b>${ACT[w.a]}</b>. Basic strategy says <b>${ACT[w.adv.act]}</b>${w.adv.dev?' (index play)':''}.</p>
+    <p class="muted">${w.adv.why()}</p>
+    <div class="row"><button class="btn primary" data-a="wchange">Change my play</button><button class="btn" data-a="wplay">${ACT[w.a]} anyway</button></div>`;
+  }
+  warnHTML='<div class="warnbox">'+html+'</div>';render();
+}
+function closeModal(){warnHTML='';render();}
+
+/* ============ rendering ============ */
+function cardHTML(c){
+  let cls='',st='';
+  if(!shown.has(c.id)){shown.add(c.id);cls=' new';st=` data-i="${idxMap.get(c.id)||0}"${c.id===curHoleId?' data-flip="1"':''}`;}
+  return`<div class="card${isRed(c)?' red':''}${cls}"${st}><span class="rk">${c.r}</span><span class="st">${c.s}</span><span class="pip">${c.s}</span></div>`;
+}
+function backHTML(c){
+  let cls='',st='';
+  if(!shownBack.has(c.id)){shownBack.add(c.id);cls=' new';st=` data-i="${idxMap.get(c.id)||0}"`;}
+  const g=cfg.admin&&c?`<span class="ghost">${c.r}${c.s}</span>`:'';
+  return`<div class="card back${cls}"${st}>${g}</div>`;
+}
+function totBadge(cards){
+  const{t,soft}=total(cards);
+  if(t>21)return`<span class="tot">${t}<small>bust</small></span>`;
+  return`<span class="tot">${t}${soft&&t<21?'<small>soft</small>':''}</span>`;
+}
+function renderMachine(){
+  const T=m.total,sh=m.left/T,tr=(m.tray.length+(pendingCards?pendingCards.length:0))/T,H=50,y0=4;
+  let mark='';
+  if(cfg.mode==='o2s'){}else if(cfg.mode==='csm'){const f=Math.min(1,Math.max(1,cfg.csmTray)/T);mark=`<line x1="42" x2="70" y1="${y0+H*(1-f)}" y2="${y0+H*(1-f)}" stroke="#d6ad4f" stroke-width="2" stroke-dasharray="3 2"/>`;}
+  else{const f=1-cfg.pen/100;mark=`<line x1="4" x2="32" y1="${y0+H*(1-f)}" y2="${y0+H*(1-f)}" stroke="#d6ad4f" stroke-width="2" stroke-dasharray="3 2"/>`;}
+  $('#mach').innerHTML=`<svg viewBox="0 0 74 62">
+    <rect x="4" y="${y0}" width="28" height="${H}" rx="4" fill="rgba(255,255,255,.07)" stroke="rgba(255,255,255,.25)"/>
+    <rect x="4" y="${y0+H*(1-sh)}" width="28" height="${H*sh}" rx="3" fill="#72e3c8" opacity=".85"/>
+    <rect x="42" y="${y0}" width="28" height="${H}" rx="4" fill="rgba(255,255,255,.07)" stroke="rgba(255,255,255,.25)"/>
+    <rect x="42" y="${y0+H*(1-tr)}" width="28" height="${H*tr}" rx="3" fill="#f6f0e1" opacity=".8"/>${mark}
+    <text x="18" y="60" text-anchor="middle" font-size="8" fill="#8db5a4">${cfg.mode==='asm'?'shoe':'machine'}</text>
+    <text x="56" y="60" text-anchor="middle" font-size="8" fill="#8db5a4">tray</text></svg>`;
+}
+function renderHUD(){
+  renderMachine();
+  const show=cfg.showCount||Date.now()<peekUntil,hid='•••';
+  const hNet=hudHold?hudHold.net:state.net,hRC=hudHold?hudHold.rc:m.shownRC(),tc=hudHold?hudHold.tc:m.tc(),acc=sess.n?Math.round(100*sess.ok/sess.n)+'%':'–';
+  const tray=m.tray.length+(pendingCards?pendingCards.length:0);
+  const trayTxt=cfg.mode==='o2s'?`${tray}<span> / ${Math.max(1,cfg.o2sTray)}</span>`:cfg.mode==='csm'?`${tray}<span> / ${Math.max(1,cfg.csmTray)}</span>`:`${Math.round(100*m.dealt/m.total)}%`;
+  $('#pills').innerHTML=`
+   <div class="pill" data-a="peek"><b>${show?sgn(hRC,0):hid}</b><span>${cfg.countMode==='micro'?'micro rc':'running'}</span></div>
+   <div class="pill tc" data-a="peek"><b>${show?sgn(tc,1):hid}</b><span>${cfg.countMode==='micro'?'micro tc':'true'}</span></div>
+   <div class="pill"><b>${((hudHold?hudHold.shoe:m.left)/52).toFixed(1)}</b><span>decks left</span></div>
+   <div class="pill"><b>${trayTxt}</b><span>${cfg.mode==='o2s'?'tray → machine':cfg.mode==='csm'?'tray → returns':'penetration'}</span></div>
+   <div class="pill"><b>${acc}</b><span>strategy acc.</span></div>
+   <div class="pill"><b class="${hNet>=0?'good':'bad'}">${money(hNet)}</b><span>session</span></div>`;renderStrip(show);
+}
+function handHTML(h,i,live){
+  const cur=live&&r.cur===i&&phase==='act';
+  const cards=h.cards.map(cardHTML).join('');
+  const tag=h.res?`<span class="tag ${h.res}">${{win:'Win',lose:'Lose',push:'Push',bust:'Bust',bj:'Blackjack',sur:'Surrender'}[h.res]} ${h.net?money(h.net):''}</span>`:'<span class="tag" style="visibility:hidden">·</span>';
+  return`<div class="hand${cur?' cur':''}"><div class="cards">${cards}</div>${totBadge(h.cards)}<span class="betmark">${money(h.bet).replace('.00','')}</span>${tag}</div>`;
+}
+function othersHTML(){
+  if(!r||!r.others||!r.others.length)return'';
+  const chip=s=>`<span class="oth">${s.hands.map(h=>{const t=total(h.cards).t;return h.cards.map(c=>`<span class="${isRed(c)?'rd':''}">${c.r}${c.s}</span>`).join(' ')+` <b>${t>21?'bust':t}</b>`;}).join(' | ')}</span>`;
+  const arr=r.others.map(chip);arr.splice(r.before,0,'<span class="oth you">YOU</span>');
+  return`<div class="others"><div class="zlabel" style="width:100%;justify-content:center">Other players · you are the gold seat</div>${arr.join('')}</div>`;
+}
+function feltPrint(){
+  const bj=cfg.bj>=1.5?'3 TO 2':'6 TO 5';
+  const dl=cfg.h17?'Dealer must draw to 16 and hit soft 17':'Dealer must draw to 16 and stand on all 17s';
+  const pays=cfg.nohole?'':'<text transform="translate(50,66) rotate(22)" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">PAYS 2 TO 1</text><text transform="translate(310,66) rotate(-22)" font-size="8" font-weight="700" fill="#fff" text-anchor="middle">PAYS 2 TO 1</text>';
+  const ln='fill="none" stroke="rgba(255,255,255,.5)" stroke-width="1.2"';
+  return`<svg class="feltprint" viewBox="0 0 360 112" aria-hidden="true" font-family="Georgia,serif">
+   <defs><path id="fpA" d="M24,14 Q180,86 336,14"/><path id="fpB" d="M30,27 Q180,99 330,27"/><path id="fpC" d="M46,62 Q180,134 314,62"/></defs>
+   <path d="M6,34 Q180,106 354,34" ${ln}/><path d="M6,70 Q180,142 354,70" ${ln}/><path d="M6,34 L6,70 M354,34 L354,70" ${ln}/>
+   <text font-weight="700" font-size="16" fill="#ff8a8a" text-anchor="middle"><textPath href="#fpA" startOffset="50%">BLACK JACK PAYS ${bj}</textPath></text>
+   <text font-size="8.5" font-style="italic" fill="rgba(255,255,255,.6)" text-anchor="middle"><textPath href="#fpB" startOffset="50%">${dl}</textPath></text>
+   <text font-weight="700" font-size="17" fill="${cfg.nohole?'rgba(247,209,84,.4)':'#f7d154'}" text-anchor="middle"><textPath href="#fpC" startOffset="50%">${cfg.nohole?'NO INSURANCE':'INSURANCE'}</textPath></text>
+   ${pays}</svg>`;
+}
+const modeName=()=>cfg.mode==='o2s'?'One2Six':cfg.mode==='csm'?'CSM':'Shoe';
+function rulesText(){
+  return[modeName(),cfg.decks+' deck'+(cfg.decks>1?'s':''),cfg.h17?'H17':'S17','BJ '+(cfg.bj>=1.5?'3:2':'6:5'),
+    cfg.dbl==='any'?'double any':cfg.dbl==='9-11'?'double 9–11':'double 10–11',cfg.dsoft?'':'hard only',cfg.das?'DAS':'no DAS',cfg.sur?'late surrender':'no surrender',cfg.nohole?'no hole card':''].filter(Boolean).join(' · ');
+}
+function seatsOrHands(){
+  if(!r.others.length)return`<div class="zone"><div class="hands">${r.hands.map((h,i)=>handHTML(h,i,true)).join('')}</div></div>`;
+  const T=r.plan.T,my=r.plan.my,bot={},occ=r.plan.occ,firstB=occ[0],lastB=occ[occ.length-1];r.others.forEach(o=>{bot[o.seat]=o;});
+  const tw=($('#table')&&$('#table').clientWidth)||360,W=tw-16;
+  const A=({7:26,6:30,5:36}[T]||40)*Math.PI/180,step=2*A/(T-1);
+  let s=.7,R=200;
+  for(let it=0;it<3;it++){
+    R=(W/2-(62*s/2+3))/Math.sin(A);
+    let dx=1e9;for(let i=0;i<T-1;i++)dx=Math.min(dx,Math.abs(R*Math.sin(A-i*step)-R*Math.sin(A-(i+1)*step)));
+    s=Math.max(.42,Math.min(.95,(dx-3)/62));
+  }
+  const cw=62*s,drop=R*(1-Math.cos(A)),H=Math.round(drop+90*s+4*32*s+34);
+  const spots=[];
+  for(let seat=1;seat<=T;seat++){
+    const a=A-(seat-1)*step,x=W/2+R*Math.sin(a),top=R*(Math.cos(a)-Math.cos(A)),rot=(-a*180/Math.PI*0.9).toFixed(1);
+    const you=seat===my,o=bot[seat],hands=you?r.hands:(o?o.hands:null);
+    let inner='';
+    if(hands){
+      inner=`<div class="spcards">${hands.map((h,hi)=>{const cur=you&&phase==='act'&&r.cur===hi;return`<div class="shand${cur?' cur':''}"><div class="cards">${h.cards.map(cardHTML).join('')}</div>${totBadge(h.cards)}</div>`;}).join('')}</div>`;
+    }
+    const chip=you?`<span class="betmark sm spchip">${money(r.hands.reduce((q,h)=>q+h.bet,0)).replace('.00','')}</span>`:'';
+    spots.push(`<div class="sp" style="left:${(x-cw/2).toFixed(1)}px;top:calc(${top.toFixed(1)}px*var(--fit,1));width:${cw.toFixed(1)}px;--cs:calc(var(--fit,1)*${s.toFixed(3)})"><div class="spot${you?' you':''}" style="transform:translateX(-50%) rotate(${rot}deg)"><span class="spn">${you?'YOU':seat}</span></div>${chip}${inner}</div>`);
+  }
+  return`<div class="zone" style="width:100%"><div class="felt" style="height:calc(${H}px*var(--fit,1))">${spots.join('')}</div></div>`;
+}
+function renderTable(){
+  if(!r){
+    $('#table').innerHTML=`<div class="zone"><div class="zlabel">Dealer ${cfg.admin?'<span class="adminbanner">ADMIN</span>':''}</div></div>
+      <div id="center" class="has">${feltPrint()}<div class="big">${state.bank<cfg.minBet?'Out of chips':'Place your bet'}</div>
+      <div class="sub"></div></div>
+      <div class="zone"><div class="zlabel">${money(state.bank)} bankroll</div></div>
+      <div class="rulesline">${rulesText()}</div>`;
+    return;
+  }
+  curHoleId=r.holeId;
+  const faceUp=[...r.dealer,...r.hands.flatMap(h=>h.cards),...r.others.flatMap(o=>o.hands.flatMap(h=>h.cards))];
+  const fresh=faceUp.filter(c=>!shown.has(c.id));if(r.hole&&!shownBack.has(r.hole.id))fresh.push(r.hole);
+  fresh.sort((a,b)=>(a.seq||0)-(b.seq||0));idxMap=new Map(fresh.map((c,i)=>[c.id,i]));
+  const d=r.dealer,dc=d.map(cardHTML).join('')+(r.hole?backHTML(r.hole):'');
+  const dtot=d.length?totBadge(d):'';
+  let big='',sub='';
+  if(phase==='result'){
+    big=r.net>0?`You win ${money(r.net)}`:r.net<0?`You lose ${money(-r.net)}`:'Push';
+    sub=r.msg||(r.ins?`Insurance ${r.insNet>=0?'paid':'lost'} ${money(Math.abs(r.insNet))}`:'');
+  }else if(phase==='ins'){big='Insurance?';sub='Dealer shows an Ace';}
+  else if(r.hands.length>1)sub=`Hand ${r.cur+1} of ${r.hands.length}`;
+  $('#table').innerHTML=`
+   <div class="zone"><div class="zlabel">Dealer ${cfg.admin?'<span class="adminbanner">ADMIN</span>':''}</div>
+     <div class="cards">${dc}</div>${dtot}</div><div id="shoeIcon" class="shoeIcon"><span>${cfg.mode==='o2s'?'O2S':cfg.mode==='csm'?'CSM':'SHOE'}</span></div>
+   <div id="center" class="${big||sub?'has':''}">${feltPrint()}<div class="big">${big}</div><div class="sub">${sub}</div></div>
+   ${seatsOrHands()}
+   <div class="rulesline">${rulesText()}</div>`;
+}
+function renderAdvice(){
+  const el=$('#adviceBar');
+  el.style.display='block';
+  if(adviceMsg){el.className=adviceMsg.cls||'';el.innerHTML=adviceMsg.html;return;}
+  el.className='idle';
+  const ret=cfg.mode==='o2s'?`One2Six model: tray goes in at ${Math.max(1,cfg.o2sTray)} cards (${m.tray.length+(pendingCards?pendingCards.length:0)} now), front shoe ${cfg.o2sFront}`:cfg.mode==='csm'?`Tray returns at ${Math.max(1,cfg.csmTray)} cards (${m.tray.length+(pendingCards?pendingCards.length:0)} now)`:`Cut card at ${cfg.pen}% (${Math.round(100*m.dealt/m.total)}% dealt)`;
+  const e=edgeAt(nextTc());
+  el.innerHTML=`${ret}<br>${cfg.showCount?(cfg.countMode==='micro'?'Micro count: edge unproven, see Simulator · ':`Est. edge <b class="${e>=0?'good':'bad'}">${sgn(e,2)}%</b> · `):''}${cfg.coach?'Coach on. Tap Hint for the best play.':'Coach off.'}`;
+}
+function chipsHTML(on){
+  return`<div class="chips${on?'':' off'}">${[[5,'#c4282f'],[25,'#1d9a5b'],[50,'#d9822b'],[100,'#25272e'],[500,'#9b5bd1']].map(([v,c])=>`<button class="chip" style="background:${c}" data-a="chip" data-v="${v}" ${on?'':'disabled'}>${v}</button>`).join('')}</div>`;
+}
+function renderDock(){
+  const d=$('#dock');d.classList[busy?'add':'remove']('busy');
+  if(warn&&warnHTML){d.innerHTML=`<div class="dockin scroll">${warnHTML}</div>`;return;}
+  if(quiz){d.innerHTML=`<div class="dockin scroll">${quizHTML()}</div>`;return;}
+  if(phase==='bet'||phase==='result'){
+    const res=phase==='result';
+    if(state.bank<cfg.minBet){d.innerHTML=`<div class="dockin"><p>You're below the table minimum.</p><div class="row"><button class="btn primary" data-a="rebank">Reset bankroll to ${money(cfg.bankroll)}</button></div></div>`;return;}
+    const sug=suggestBet(nextTc(),state.bank);
+    d.innerHTML=`<div class="dockin">${chipsHTML(true)}
+     <div class="betline"><div class="amt">${money(state.bet)}<span class="muted small"> bet</span></div>
+       <div class="row"><button class="btn sm ghost" data-a="clear">Clear</button><button class="btn sm ghost" data-a="rebet">Last</button><button class="btn sm" data-a="usesug">Suggest ${money(sug)}</button></div></div>
+     <div class="row"><button class="btn sm" data-a="qopen">Count?</button>${res?`<button class="btn primary" data-a="next" data-v="cur" ${state.bet<cfg.minBet?'disabled':''}>Deal next hand</button>`:`<button class="btn primary" data-a="deal" ${state.bet<cfg.minBet?'disabled':''}>Deal</button>`}</div></div>`;
+    return;
+  }
+  if(phase==='ins'){
+    const cost=r.hands[0].bet/2;
+    d.innerHTML=`<div class="dockin">${chipsHTML(false)}<div class="betline"><div class="muted small">Insurance costs ${money(cost)} and pays 2:1</div><button class="btn sm ghost" data-a="hint">Hint</button></div>
+      <div class="row"><button class="btn" data-a="ins" data-v="1" ${r.spare<cost?'disabled':''}>Take insurance</button><button class="btn primary" data-a="ins" data-v="0">No insurance</button></div></div>`;
+    return;
+  }
+  const L=pending.legal,b=(a,l,cls='')=>`<button class="btn ${cls}" data-a="act" data-v="${a}" ${L.includes(a)?'':'disabled'}>${l}</button>`;
+  d.innerHTML=`<div class="dockin">${chipsHTML(false)}<div class="betline"><div class="amt">${money(committed()).replace('.00','')}<span class="muted small"> in play</span></div><button class="btn sm ghost" data-a="hint">Hint</button></div>
+    <div class="acts5">${b('H','Hit')}${b('S','Stand','primary')}${b('D','Double')}${b('P','Split')}${b('R','Surr.')}</div></div>`;
+}
+function fitTable(){
+  const t=$('#table');if(!t||!t.style)return;
+  t.style.setProperty('--fit',1);
+  for(const f of [0.9,0.8,0.72,0.64,0.56]){
+    if(t.scrollHeight<=t.clientHeight+1&&t.scrollWidth<=t.clientWidth+1)break;
+    t.style.setProperty('--fit',f);
+  }
+}
+window.addEventListener('resize',fitTable);
+const SPEEDS={1:[110,220],2:[300,380],3:[520,520]};
+function endBusy(){busy=false;hudHold=null;$('#table').classList.remove('dealing');renderHUD();renderDock();}
+function skipDeal(){
+  if(!busy)return;
+  document.querySelectorAll('#table .card').forEach(el=>{try{el.getAnimations().forEach(a=>a.finish());}catch(e){}el.classList.remove('new');});
+  clearTimeout(busyT);endBusy();
+}
+function animateDeal(){
+  const els=[...document.querySelectorAll('#table .card.new')];
+  if(!els.length){if(hudHold&&!busy){hudHold=null;renderHUD();}return;}
+  const sp=SPEEDS[cfg.dealSpeed],rm=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(!sp||rm||!els[0].animate){els.forEach(e=>e.classList.remove('new'));hudHold=null;renderHUD();return;}
+  const sh=$('#shoeIcon'),sr=sh?sh.getBoundingClientRect():null;
+  els.sort((a,b)=>(+a.dataset.i)-(+b.dataset.i));
+  els.forEach((el,i)=>{
+    const b=el.getBoundingClientRect(),flip=el.dataset.flip==='1';
+    const dx=sr?sr.left+sr.width/2-(b.left+b.width/2):0,dy=sr?sr.top+sr.height/2-(b.top+b.height/2):-120;
+    const kf=flip?[{opacity:1,transform:'perspective(500px) rotateY(90deg)'},{opacity:1,transform:'none'}]
+      :[{opacity:0,transform:`translate(${dx}px,${dy}px) rotate(-28deg) scale(.45)`},{opacity:1,offset:.12,transform:`translate(${dx*.88}px,${dy*.88}px) rotate(-24deg) scale(.5)`},{opacity:1,transform:'none'}];
+    const a=el.animate(kf,{duration:sp[1],delay:i*sp[0],fill:'both',easing:'cubic-bezier(.22,.7,.3,1)'});
+    a.onfinish=()=>el.classList.remove('new');
+  });
+  busy=true;$('#table').classList.add('dealing');renderDock();
+  clearTimeout(busyT);busyT=setTimeout(endBusy,(els.length-1)*sp[0]+sp[1]+60);
+}
+function render(){renderHUD();if(!busy)renderTable();renderAdvice();renderDock();fitTable();animateDeal();if($('#sheet').classList.contains('open'))renderSheet();}
+
+/* ============ sheets ============ */
+const TABS=[['set','Settings'],['stats','Stats'],['chart','Strategy'],['bets','Bet spread'],['csm','CSM guide'],['table','Table'],['scout','Scout'],['sim','Simulator'],['cmp','CSM vs Shoe']];
+function openSheet(tab){
+  sheetTab=tab;$('#sheet').classList.add('open');renderSheet();$('#sbody').scrollTop=0;
+}
+function renderSheet(){
+  const tabs=TABS.concat(cfg.admin?[['admin','Admin']]:[]);
+  $('#tabs').innerHTML=tabs.map(([k,l])=>`<button class="${k===sheetTab?'on':''}" data-a="tab" data-v="${k}">${l}</button>`).join('')+`<button class="x" data-a="close">Close</button>`;
+  const f={set:sheetSettings,stats:sheetStats,chart:sheetChart,bets:sheetBets,csm:sheetCSM,sim:sheetSim,cmp:sheetCmp,table:sheetTable,scout:sheetScout,admin:sheetAdmin}[sheetTab];
+  const sc=$('#sbody').scrollTop;$('#sbody').innerHTML=f();$('#sbody').scrollTop=sc;
+}
+const seg=(k,opts)=>`<div class="seg">${opts.map(([v,l])=>`<button class="${cfg[k]===v?'on':''}" data-a="seg" data-k="${k}" data-v='${JSON.stringify(v)}'>${l}</button>`).join('')}</div>`;
+const tog=k=>`<button class="tog ${cfg[k]?'on':''}" data-a="tog" data-k="${k}" aria-label="toggle"></button>`;
+const setRow=(l,sm,ctl)=>`<div class="set"><div class="l">${l}${sm?`<small>${sm}</small>`:''}</div>${ctl}</div>`;
+const numIn=k=>`<input type="number" inputmode="decimal" value="${cfg[k]}" data-num="${k}">`;
+
+function o2sControls(){
+  if(cfg.mode!=='o2s')return'';
+  const r3=(k,l,lo,hi,sm)=>`<div class="set" style="display:block"><div class="l">${l}: <b class="mint">${cfg[k]}</b><small>${sm}</small></div><input type="range" min="${lo}" max="${hi}" value="${cfg[k]}" data-range="${k}"></div>`;
+  const T=Math.max(1,cfg.o2sTray);
+  return`<div class="set" style="display:block"><div class="l">Cards in the discard tray before the dealer puts them in the machine: <b class="mint">${T}</b>
+     <small>≈ ${Math.max(1,Math.round(T/cpr()))} round${T/cpr()>1.5?'s':''} at this table size. The manual says after every hand, but real dealers vary, so set what you see at your casino.</small></div>
+     <div class="seg" style="margin:8px 0">${[[1,'Every hand'],[13,'~2 hands'],[52,'1 deck'],[104,'2 decks'],[156,'3 decks']].map(([v,l])=>`<button class="${T===v?'on':''}" data-a="o2stray" data-v="${v}">${l}</button>`).join('')}</div>
+     <input type="range" min="1" max="${Math.max(2,cfg.decks*52-60)}" value="${T}" data-range="o2sTray"></div>
+  <p class="muted small" style="margin:8px 0">Once inserted, cards enter the wheel one at a time and a whole compartment is released into the front shoe. The machine settings below are not published for production machines, so treat them as assumptions.</p>
+  ${r3('o2sFront','Front shoe depth',8,30,'Public estimates range from about 11 to over 20 cards.')}
+  ${r3('o2sComp','Wheel compartments',24,48,'A patent example uses 38.')}
+  ${r3('o2sCap','Cards per compartment',6,12,'A patent example allows up to 9.')}`;
+}
+function sheetSettings(){
+  const csm=cfg.mode==='csm',lock=(phase==='act'||phase==='ins')?'<p class="bad small">Finish the current hand before changing rules.</p>':'';
+  return`${lock}
+  <h3>Shuffler</h3>
+  ${setRow('Machine','CSM: cards return in batches. One2Six: model of the compartment-wheel machine. ASM: shoe dealt to a cut card',seg('mode',[['csm','CSM'],['o2s','One2Six'],['asm','ASM']]))}
+  ${setRow('Decks','',seg('decks',[[1,'1'],[2,'2'],[4,'4'],[5,'5'],[6,'6'],[8,'8']]))}
+  ${o2sControls()}${csm&&cfg.mode!=='o2s'?`<div class="set" style="display:block"><div class="l">Cards in the discard tray before they return to the machine: <b class="mint">${Math.max(1,cfg.csmTray)}</b>
+     <small>≈ ${Math.max(1,Math.round(cfg.csmTray/cpr()))} round${cfg.csmTray/cpr()>1.5?'s':''} at this table size. Real dealers vary: some return after 1–2 hands, others after 1–2 decks.</small></div>
+     <div class="seg" style="margin:8px 0">${[[1,'Every hand'],[13,'~2 hands'],[52,'1 deck'],[104,'2 decks'],[156,'3 decks']].map(([v,l])=>`<button class="${cfg.csmTray===v?'on':''}" data-a="tray" data-v="${v}">${l}</button>`).join('')}</div>
+     <input type="range" min="1" max="${Math.max(2,cfg.decks*52-40)}" value="${Math.max(1,cfg.csmTray)}" data-range="csmTray"></div>`
+  :`<div class="set" style="display:block"><div class="l">Cut card penetration: <b class="mint">${cfg.pen}%</b><small>Shoe is reshuffled after the round in which the cut card appears.</small></div>
+     <input type="range" min="40" max="90" step="5" value="${cfg.pen}" data-range="pen"></div>`}
+  <h3>Rules</h3>
+  ${setRow('Blackjack pays','',seg('bj',[[1.5,'3:2'],[1.2,'6:5']]))}
+  ${setRow('Dealer on soft 17','',seg('h17',[[0,'Stands'],[1,'Hits']]))}
+  ${setRow('Dealer hole card','No hole card: the dealer takes the second card after you play. No insurance',seg('nohole',[[0,'Hole card'],[1,'None']]))}
+  ${cfg.nohole?setRow('Dealer blackjack takes','Original bet only is the common rule',seg('obo',[[1,'Original bet'],[0,'All bets']])):''}
+  ${setRow('Surrender','Late surrender, first two cards',seg('sur',[[0,'None'],[1,'Late']]))}
+  ${setRow('Double after split','',tog('das'))}
+  ${setRow('Double on','',seg('dbl',[['any','Any 2 cards'],['10-11','10–11'],['9-11','9–11']]))}
+  ${setRow('Double soft hands','Off = only hard hands can be doubled',tog('dsoft'))}
+  ${setRow('Max hands after splitting','',seg('maxHands',[[2,'2'],[3,'3'],[4,'4']]))}
+  ${setRow('Resplit aces','',tog('rsa'))}
+  ${setRow('Hit split aces','Off = one card per split ace',tog('hsa'))}
+  <h3>Table and session</h3>
+  ${setRow('Table size','Seats are numbered from 1, starting on the right as you face the dealer',seg('tableSeats',[[5,'5'],[6,'6'],[7,'7']]))}
+  ${setRow('Other players','Seated at random spots. Their cards are dealt, visible, counted and fill the tray faster',seg('others',nums(0,(cfg.tableSeats||7)-1)))}
+  ${cfg.others?setRow('Your seat','Seat number at the table. Other players take random seats and act in seat order',seg('mySeat',nums(1,cfg.tableSeats||7))):''}
+  ${cfg.others?`<div class="row" style="margin:6px 0"><button class="btn sm" data-a="reseat">Re-deal the seating</button></div>`:''}
+  ${setRow('Deal speed','Cards are dealt one at a time. Tap the table to skip a deal in progress',seg('dealSpeed',[[0,'Instant'],[1,'Fast'],[2,'Normal'],[3,'Real']]))}
+  
+  ${setRow('Session length','Used by the session simulator',seg('hours',[[1,'1h'],[2,'2h'],[3,'3h'],[4,'4h'],[6,'6h'],[8,'8h']]))}
+  ${setRow('Hands per hour','Heads-up CSM play is fast (200 or more); a full table is slower',numIn('hph'))}
+  <h3>Coaching</h3>
+  ${setRow('Warn before a wrong play','You can change your play or keep it',tog('coach'))}
+  ${setRow('Count method','Hi-Lo true count, or a micro count that only looks at the cards from the last round or two',seg('countMode',[['hilo','Hi-Lo'],['micro','Micro']]))}
+  ${cfg.countMode==='micro'?setRow('Micro window','How many recent rounds to count (the cards on the table plus the last rounds)',seg('microRounds',[[1,'1'],[2,'2'],[3,'3']])):''}
+  ${cfg.countMode==='micro'?setRow('Micro divisor','Decks you divide the micro count by. 1 to 2 decks is the usual suggestion',seg('microDecks',[[1,'1'],[1.5,'1.5'],[2,'2']])):''}
+  ${setRow('Use count index plays','Illustrious 18 and insurance at TC +3',tog('dev'))}
+  ${setRow('Show running and true count','Off = count yourself. Tap a count box to peek',tog('showCount'))}
+  <h3>Bankroll and betting</h3>
+  ${setRow('Table minimum','',numIn('minBet'))}${setRow('Table maximum','',numIn('maxBet'))}
+  ${setRow('Starting bankroll','',numIn('bankroll'))}
+  <div class="row" style="margin:8px 0"><button class="btn sm" data-a="rebank">Reset bankroll and session</button></div>
+  ${setRow('Bet suggestion style','Scaled: min bet to your max spread as the count rises. Ladder: fixed 1-2-4-6-8. Kelly: sized to bankroll and edge',seg('spread',[['scale','Scaled'],['ramp','Ladder'],['kelly','Kelly']]))}
+  ${cfg.spread==='scale'?setRow('Max spread','Biggest bet as a multiple of the table minimum',seg('maxSpread',[[4,'1–4'],[8,'1–8'],[12,'1–12'],[16,'1–16']])):''}
+  ${cfg.spread==='kelly'?setRow('Kelly fraction','Half Kelly is a common compromise',seg('kelly',[[0.25,'¼'],[0.5,'½'],[1,'Full']])):''}
+  <h3>Data</h3>
+  ${[['res','Win/loss history','Hands won, lost and pushed, and money won or lost'],['acc','Strategy accuracy stats','Accuracy, hand types and count checks'],['all','Everything','Results, accuracy and the session total']].map(([v,l,sm])=>setRow(l,sm,`<button class="btn sm ${confirmKey==='clr-'+v?'primary':''}" data-a="clr" data-v="${v}">${confirmKey==='clr-'+v?'Tap again':'Clear'}</button>`)).join('')}
+  <h3>Testing</h3>
+  ${setRow('Super admin mode','Shows the hole card, next cards and remaining deck composition',tog('admin'))}`;
+}
+function pctBar(p){return`<div class="bar"><i style="width:${p}%"></i></div>`;}
+function resultsHTML(){
+  const k=periodKeys(),P=[['Today',k.today,k.today],['This week',k.week,null],['This month',k.month,null],['This year',k.year,null],['All time',null,null]];
+  const rows=P.map(([l,from,to])=>{
+    const a=aggRes(from,to),wr=a.h?Math.round(100*a.w/a.h)+'%':'–';
+    return`<tr><td>${l}</td><td>${a.h}</td><td>${a.w}–${a.l}–${a.p}</td><td>${wr}</td><td class="${a.net>0?'good':a.net<0?'bad':''}">${a.h?(a.net>=0?'+':'')+money(a.net):'–'}</td></tr>`;
+  }).join('');
+  const all=aggRes(null,null);
+  const days=Object.entries(results.days).filter(([,d])=>d.h);
+  let best=null,worst=null;for(const[k2,d]of days){if(!best||d.net>best[1].net)best=[k2,d];if(!worst||d.net<worst[1].net)worst=[k2,d];}
+  // last 14 days bars
+  const bars=[];const now=new Date();
+  for(let i=13;i>=0;i--){const dt=new Date(now);dt.setDate(now.getDate()-i);const key=dayKey(dt),d=results.days[key];bars.push({key,net:d?d.net:0,h:d?d.h:0,lab:dt.getDate()});}
+  const mx=Math.max(1,...bars.map(b=>Math.abs(b.net))),Wd=340,Ht=110,bw=Wd/14;
+  const chart=bars.some(b=>b.h)?`<svg viewBox="0 0 ${Wd} ${Ht+14}" style="width:100%;background:rgba(255,255,255,.04);border-radius:10px">
+    <line x1="0" x2="${Wd}" y1="${Ht/2}" y2="${Ht/2}" stroke="rgba(255,255,255,.25)"/>
+    ${bars.map((b,i)=>{const h=Math.abs(b.net)/mx*(Ht/2-6),y=b.net>=0?Ht/2-h:Ht/2;return b.h?`<rect x="${(i*bw+3).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw-6).toFixed(1)}" height="${Math.max(1,h).toFixed(1)}" rx="2" fill="${b.net>=0?'#86e394':'#ff8272'}"/>`:'';}).join('')}
+    ${bars.map((b,i)=>`<text x="${(i*bw+bw/2).toFixed(1)}" y="${Ht+11}" text-anchor="middle" font-size="8" fill="#8db5a4">${b.lab}</text>`).join('')}</svg>`:'';
+  const cb=`<button class="btn sm ${confirmKey==='clr-res'?'primary':''}" data-a="clr" data-v="res">${confirmKey==='clr-res'?'Tap again to confirm':'Clear win/loss history'}</button>`;
+  return`<h3>Wins and losses</h3><p class="muted small">Counted per hand (a split counts as two). Surrender and bust count as losses. Net includes insurance.</p>
+   <table class="t"><tr><th></th><th>Hands</th><th>W–L–P</th><th>Win %</th><th>Net</th></tr>${rows}</table>
+   ${all.h?`<p class="small">Blackjacks: <b>${all.bj}</b> · Money bet: <b>${money(all.wag)}</b> · Return on money bet: <b class="${all.net>=0?'good':'bad'}">${sgn(100*all.net/Math.max(1,all.wag),2)}%</b></p>
+   <p class="small">Best day: <b class="good">${money(best[1].net)}</b> (${best[0]}) · Worst day: <b class="bad">${money(worst[1].net)}</b> (${worst[0]})</p>`:'<p class="muted">Play a few hands and your results will build up here.</p>'}
+   ${chart?`<h3>Net by day, last 14 days</h3>${chart}`:''}
+   <div class="row" style="margin-top:10px">${cb}</div>`;
+}
+function sheetStats(){
+  const k=periodKeys(),P=[['Today',aggregate(k.today)],['This week',aggregate(k.week)],['This month',aggregate(k.month)],['All time',aggregate(null)]];
+  const cell=([l,a])=>{const p=a.n?Math.round(100*a.ok/a.n):null;
+    return`<div class="card2"><span class="muted small">${l}</span><b class="${p===null?'':p>=95?'good':p>=85?'':'bad'}">${p===null?'–':p+'%'}</b><span class="small muted">${a.ok} of ${a.n} correct${a.hint?` · ${a.hint} hinted`:''}</span>${pctBar(p||0)}</div>`;};
+  const all=aggregate(null),names={hard:'Hard totals',soft:'Soft totals',pair:'Pairs',ins:'Insurance'};
+  const weak=Object.entries(all.cat).map(([c,v])=>`<tr><td>${names[c]||c}</td><td>${v[0]}</td><td>${v[1]}</td><td class="${v[1]/v[0]>=.95?'good':'bad'}">${Math.round(100*v[1]/v[0])}%</td></tr>`).join('');
+  const rb=(key,label)=>`<button class="btn sm ${confirmKey===key?'primary':''}" data-a="reset" data-v="${key}">${confirmKey===key?'Tap again to confirm':label}</button>`;
+  return`<h3>Basic strategy accuracy</h3><p class="muted small">Counts your first choice on every decision. Hinted decisions are excluded.</p>
+   <div class="stat4">${P.map(cell).join('')}</div>
+   ${resultsHTML()}<h3>By hand type (all time)</h3>${weak?`<table class="t"><tr><th></th><th>Decisions</th><th>Correct</th><th>Acc.</th></tr>${weak}</table>`:'<p class="muted">Play a few hands to see where you slip.</p>'}
+   ${countStatsHTML()}<h3>Reset</h3><div class="row" style="flex-wrap:wrap">${rb('today','Reset today')}${rb('week','Reset this week')}${rb('month','Reset this month')}${rb('all','Reset all accuracy')}</div>`;
+}
+function chartCell(cards,withP,u){
+  const h={cards,bet:10,split:false,aceLock:false},rr={hands:[h],spare:1e9};
+  let L=legalActs(rr,h);if(!withP)L=L.filter(x=>x!=='P');
+  const up={r:u===11?'A':String(u),s:'♠'};
+  const a=advise(cards,up,L,0,false);
+  const lab=a.act==='D'&&a.raw==='Ds'?'Ds':a.act==='D'?'D':a.act;
+  return`<td><span class="c c${lab}">${lab}</span></td>`;
+}
+const cd=n=>({r:n===11?'A':String(n),s:'♠'});
+function sheetChart(){
+  const ups=[2,3,4,5,6,7,8,9,10,11],head=`<tr><th></th>${ups.map(u=>`<th>${u===11?'A':u}</th>`).join('')}</tr>`;
+  const row=(lab,cards,wp)=>`<tr><td>${lab}</td>${ups.map(u=>chartCell(cards,wp,u)).join('')}</tr>`;
+  const hard=[8,9,10,11,12,13,14,15,16,17].map(t=>row(t<=11?`${t}`:`${t}`,t<=11?[cd(2),cd(t-2)]:[cd(10),cd(t-10)],false)).join('');
+  const soft=[2,3,4,5,6,7,8,9].map(x=>row(`A,${x}`,[cd(11),cd(x)],false)).join('');
+  const pairs=[2,3,4,5,6,7,8,9,10,11].map(x=>row(x===11?'A,A':`${x},${x}`,[cd(x),cd(x)],true)).join('');
+  return`<p class="muted small">Built from your current rules (${cfg.h17?'H17':'S17'}, ${cfg.decks} decks, ${cfg.das?'DAS':'no DAS'}, double ${cfg.dbl==='any'?'any two':cfg.dbl.replace('-','–')}${cfg.dsoft?'':', hard only'}${cfg.sur?', late surrender':''}). Columns are the dealer's upcard.</p>
+  <p class="small"><span class="c cH" style="display:inline-block;padding:1px 7px;border-radius:5px;color:#000">H</span> hit &nbsp;<span class="cS" style="padding:1px 7px;border-radius:5px;color:#000">S</span> stand &nbsp;<span class="cD" style="padding:1px 7px;border-radius:5px;color:#000">D</span> double else hit &nbsp;<span class="cDs" style="padding:1px 7px;border-radius:5px;color:#000">Ds</span> double else stand &nbsp;<span class="cP" style="padding:1px 7px;border-radius:5px;color:#000">P</span> split &nbsp;<span class="cR" style="padding:1px 7px;border-radius:5px;color:#000">R</span> surrender</p>
+  <h3>Hard totals</h3><table class="t cht">${head}${hard}</table>
+  <h3>Soft totals</h3><table class="t cht">${head}${soft}</table>
+  <h3>Pairs</h3><table class="t cht">${head}${pairs}</table>
+  <p class="muted small">Totals of 7 or less always hit; 18+ hard always stand. This is the standard multi-deck chart adjusted for your rule toggles.</p>`;
+}
+function sheetBets(){
+  const he=houseEdge(),be=he/0.5;
+  const rows=[];for(let t=-2;t<=6;t++){const e=edgeAt(t),b=suggestBet(t,state.bank);rows.push(`<tr><td>${sgn(t,0)}</td><td class="${e>=0?'good':'bad'}">${sgn(e,2)}%</td><td>${money(b)}</td><td>${(b/cfg.minBet).toFixed(1)}×</td></tr>`);}
+  const sug=suggestBet(m.tc(),state.bank);
+  return`<div class="card2"><span class="muted small">Right now</span><div>True count <b class="mint">${sgn(m.tc(),1)}</b> · est. edge <b class="${edgeAt(m.tc())>=0?'good':'bad'}">${sgn(edgeAt(m.tc()),2)}%</b></div><div>Suggested bet <b>${money(sug)}</b></div></div>
+  <h3>Your rules</h3><p>Estimated house edge with basic strategy: <b>${he.toFixed(2)}%</b>. Each +1 of true count adds about 0.5% for the player, so you break even near a true count of <b>+${be.toFixed(1)}</b>.</p>
+  <h3>Bet by true count</h3><table class="t"><tr><th>TC</th><th>Edge</th><th>Bet</th><th>Units</th></tr>${rows.join('')}</table>
+  <p class="muted small">${cfg.spread==='kelly'?`Kelly sizing at ${cfg.kelly===1?'full':cfg.kelly===.5?'half':'quarter'} Kelly on a ${money(state.bank)} bankroll, clamped to ${money(cfg.minBet)}–${money(cfg.maxBet)}. Kelly stakes only a small slice of your bankroll even at +3 or +4, so on a bankroll this size against your minimum the spread stays narrow. Try Scaled or Ladder for a wider one.`:cfg.spread==='scale'?`Scaled spread: minimum bet up to breakeven (TC +${(houseEdge()/0.5).toFixed(1)}), then rising evenly to ${cfg.maxSpread||8}× the minimum at TC +5.`:'Fixed ladder: 1 unit below TC +2, then 2, 4, 6 and 8 units from +2 to +5.'} Edge figures are approximations.</p>
+  ${cfg.countMode==='micro'?`<div class="card2"><b>Micro count is on.</b> The estimated-edge figures assume a Hi-Lo true count, so they do not apply to it. Run the Simulator to see what the micro count really earns on your machine settings.</div>`:''}<h3>Hi-Lo count</h3><p>2–6 count +1, 7–9 count 0, 10–A count −1. True count = running count ÷ decks left. On a CSM the machine's cards are the "decks left", and the count resets each time the tray goes back in.</p>
+  <h3>On a CSM</h3><p>Only bet big when the count is well above breakeven and keep the minimum otherwise. How often that happens depends on the tray setting. See the CSM guide and run the Simulator to measure it for your exact rules.</p>`;
+}
+function csmAnalysis(){
+  if(cfg.mode==='o2s'){const total=cfg.decks*52,W=cfg.o2sFront;const X=Math.max(1,cfg.o2sTray)+W+cpr();return{seen:X,pct:X/total*100,sd:Math.sqrt(X*0.77*Math.max(.05,1-X/total))/Math.max(.5,(total-X)/52),mach:total-X};}
+  const total=cfg.decks*52;
+  if(cfg.mode!=='csm'){
+    const seen=Math.floor(total*cfg.pen/100),left=(total-seen)/52;
+    const sd=Math.sqrt(seen*0.77*(1-seen/total))/Math.max(.5,left);
+    return{seen,pct:seen/total*100,sd,mach:total-seen};
+  }
+  const T=Math.max(1,cfg.csmTray),seen=T+cpr(),mach=total-T;
+  const sd=Math.sqrt(T*0.77*Math.max(0.05,1-T/total))/Math.max(.5,mach/52);
+  return{seen,pct:seen/total*100,sd,mach};
+}
+function sheetCSM(){
+  const a=csmAnalysis(),sd=a.sd;
+  const verdict=sd<0.6?['Not countable','The count never gets far from zero before it resets.']:sd<1.2?['Very weak','High counts are rare and short-lived.']:sd<2?['Marginal','Occasional high counts. Needs a wide spread and patience.']:sd<3?['Playable','High counts show up regularly.']:['Good','Deep enough for a normal counting game.'];
+  return`<div class="card2"><span class="muted small">Your current setup</span>
+    <div>${cfg.mode==='o2s'?`One2Six model, tray goes in at <b>${Math.max(1,cfg.o2sTray)}</b> cards, front shoe <b>${cfg.o2sFront}</b>`:cfg.mode==='csm'?`CSM, tray returns after <b>${Math.max(1,cfg.csmTray)}</b> cards`:`Shoe, cut card at <b>${cfg.pen}%</b>`}, ${cfg.decks} decks</div>
+    <div>Cards seen before the count resets: <b>${Math.round(a.seen)}</b> (${a.pct.toFixed(0)}% of ${cfg.decks*52})</div>
+    <div>Typical true count swing at the deepest point: <b class="mint">±${a.sd.toFixed(1)}</b></div>
+    <div>Verdict: <b class="${sd<1.2?'bad':sd<2?'':'good'}">${verdict[0]}</b>. ${verdict[1]}</div></div>
+  <h3>What a CSM is</h3>
+  <p>A continuous shuffling machine takes discarded cards and feeds them back into the stack that is dealt from, so the dealer never has to stop for a manual shuffle. Patent filings describe the purpose as cutting dead time from shuffling four to eight decks and making card counting in blackjack close to impossible.</p>
+  <h3>What it changes</h3>
+  <p><b>Counting.</b> If every round's cards go straight back in, the count has nothing to track, because the machine always holds close to the full set of cards. That is why basic strategy is the realistic goal on most CSM tables.</p>
+  <p><b>Speed.</b> No shuffle breaks, so you play more hands per hour. With a house edge, more hands means a bigger expected hourly loss at the same bet.</p>
+  <p><b>Penetration.</b> Because a round's cards are out of the machine until they go back in, the count only means something between returns. If the tray holds cards for 1–2 decks before returning, you see a real swing before the count resets, much like a shoe cut at 20–35%. If it returns after 1–2 hands, you see almost nothing.</p>
+  <h3>Why the tray setting matters</h3>
+  <p>That is the setting you noticed in real life, and the app models it directly. Cards sit in the tray, so the machine's stack has a known shortfall, and the true count uses only the cards still in the machine. When the tray reaches your chosen size, it is merged and shuffled in and the count goes back to zero.</p>
+  <h3>Practical notes</h3>
+  <p>• Watch the tray and how often the dealer moves cards into the machine. Count that rhythm before you commit money.<br>• Not every CSM table returns cards at the same time, even in the same casino. Treat the return point as something to observe, not assume.<br>• Index plays and insurance only apply while the count is live. Reset your count to zero whenever the cards go back in.<br>• Shuffle-tracking and ace-sequencing do not work on a CSM.</p>
+  <h3>The One2Six</h3>
+  <p>Public manuals, product material and patents describe the One2Six as a continuous shuffler for 4, 5 or 6 decks. Cards go in one at a time into compartments in a rotating wheel, a whole compartment is released into a front shoe, and the dealer draws from that shoe. The manual tells dealers to put the discards in after every hand, but real dealers vary, so the tray setting is yours to match to what you see.</p>
+  <p>Cards sitting in the tray are out of the machine, and cards just put in cannot be dealt until the front shoe has been refilled past them (roughly the next 10–20 cards). The count in this mode excludes both, so holding the tray longer makes it more useful.</p>
+  <p><b>What is assumed.</b> The compartment count, compartment size, how compartments are chosen and the front shoe depth are not published for production machines. The defaults come from a patent example and public estimates, and you can change them in Settings. With the tray going in after every hand, the count rarely rises above +1 in simulation, so there is very little to use. That is a result of the assumptions, not a fact about your casino's machines.</p>
+  <h3>Micro count</h3>
+  <p>A short-term method sometimes suggested for CSM tables. Instead of keeping a running count over a shoe, you count only the cards on the table and from the last round or two. If a round dealt a lot of low cards (2–6), the cards waiting to be dealt are briefly richer in tens and aces, so you raise the next bet. If it dealt many tens and aces, you stay at the minimum.</p>
+  <p>Choose it in Settings → Coaching → Count method. It counts Hi-Lo values over a window of rounds and divides by a number of decks you set. Whether it earns anything depends on how soon played cards can come back out of the machine, so run the Simulator with it switched on.</p>
+  <h3>Making a CSM table playable</h3>
+  <p><b>1. Pick the best rules.</b> The Table tab ranks them. 3:2 blackjack, dealer standing on soft 17, double after split and surrender add up to well under 0.5%.</p>
+  <p><b>2. Control the cost per hour.</b> Edge × bet × hands per hour. A CSM deals more hands per hour, so keep the flat bet small or play fewer hands.</p>
+  <p><b>3. Scout the tray.</b> Log how many cards sit in the tray before the dealer returns them, by dealer. If one dealer holds 1–2 decks, that dealer's table is worth more than one who returns after every hand.</p>
+  <p><b>4. Count only where it pays.</b> Set the tray to what you logged and run CSM vs Shoe. If the count rarely gets above breakeven, play basic strategy at minimum bets and treat it as entertainment with the lowest possible cost.</p>
+  <p><b>5. Size the bankroll to the swings.</b> The session simulator shows how often a session ends badly, with and without a spread.</p>
+  <p class="muted small">Edge figures in this app are estimates. Use the Simulator to measure your own setup.</p>`;
+}
+/* ---- simulator ---- */
+let simOut='',simRunning=false;
+function sheetSim(){
+  return`<p>Plays hands on a fresh machine using perfect basic strategy${cfg.dev?' plus index plays':''}, with the rules and tray setting you have now. Measures the real edge by true count and what your bet suggestion would earn.</p>
+  <div class="row" style="margin:10px 0">${[100000,300000,1000000].map(n=>`<button class="btn sm" data-a="sim" data-v="${n}" ${simRunning?'disabled':''}>${n>=1e6?'1M':n/1000+'k'} hands</button>`).join('')}</div>
+  <div id="simOut">${simOut||'<p class="muted">Results appear here. More hands means less noise, since one hand has a standard deviation of about 1.15 bets.</p>'}</div>`;
+}
+function runSim(N){
+  if(simRunning)return;simRunning=true;
+  const sm=new Machine(true),B=['≤−2','−1','0','+1','+2','+3','+4','≥+5'];
+  const bk=B.map(()=>({n:0,sum:0,s2:0})),bi=tc=>Math.max(0,Math.min(7,Math.floor(tc)+2));
+  let done=0,flat=0,flat2=0,ramp=0,ramp2=0,rbet=0;const bank=cfg.bankroll,t0=performance.now();
+  const el=()=>$('#simOut');
+  function chunk(){
+    const end=Math.min(N,done+4000);
+    for(;done<end;done++){
+      const tc=sm.tc(),b=suggestBet(tc,bank),ix=bi(tc);
+      const g=roundGen(sm,1e12,1);let s=g.next();
+      while(!s.done){
+        const p=s.value;let inp;
+        if(p.kind==='insurance')inp=insuranceAdvice(tc,cfg.dev).take;
+        else{const h=p.r.hands[p.hand];inp=advise(h.cards,p.r.dealer[0],p.legal,sm.tc(),cfg.dev).act;}
+        s=g.next(inp);
+      }
+      const rr=s.value,u=rr.net;
+      flat+=u;flat2+=u*u;ramp+=u*b;ramp2+=u*u*b*b;rbet+=b;bk[ix].n++;bk[ix].sum+=u;bk[ix].s2+=u*u;
+      sm.endRound(roundCards(rr));
+    }
+    if(done<N){if(el())el().innerHTML=`<p>Running… ${Math.round(100*done/N)}%</p>`;setTimeout(chunk,0);return;}
+    const mean=flat/N,se=Math.sqrt(Math.max(0,flat2/N-mean*mean)/N)*100;
+    const rm=ramp/N,rse=Math.sqrt(Math.max(0,ramp2/N-rm*rm)/N),avgb=rbet/N;
+    simOut=`<div class="card2"><span class="muted small">Flat betting</span><div>Edge per hand: <b class="${mean>=0?'good':'bad'}">${sgn(mean*100,2)}%</b> <span class="muted small">(±${se.toFixed(2)}% one std. error)</span></div></div>
+     <div class="card2"><span class="muted small">With your bet suggestion (${({kelly:'Kelly',ramp:'ladder',scale:'scaled spread'})[cfg.spread]}, bankroll ${money(bank)})</span>
+       <div>Average bet: <b>${money(avgb)}</b></div><div>Expected result per hand: <b class="${rm>=0?'good':'bad'}">${money(+rm.toFixed(2))}</b> <span class="muted small">(±${money(+rse.toFixed(2))})</span></div>
+       <div>Return on money bet: <b class="${rm>=0?'good':'bad'}">${sgn(100*rm/avgb,2)}%</b></div></div>
+     <h3>Edge by true count at bet time</h3><table class="t"><tr><th>TC</th><th>Hands</th><th>Player edge (± error)</th><th>Your bet</th></tr>
+     ${bk.map((x,i)=>`<tr style="${x.n<5000?'opacity:.55':''}"><td>${B[i]}</td><td>${x.n.toLocaleString()} (${(100*x.n/N).toFixed(2)}%)</td><td class="${x.sum>=0?'good':'bad'}">${x.n?sgn(100*x.sum/x.n,2)+'% ±'+(100*Math.sqrt(Math.max(0,x.s2/x.n-(x.sum/x.n)**2)/x.n)).toFixed(1):'–'}</td><td>${money(suggestBet(i-2,bank))}</td></tr>`).join('')}</table>
+     <p class="muted small">${N.toLocaleString()} hands in ${((performance.now()-t0)/1000).toFixed(1)}s. Faded rows have under 5,000 hands, so their edge is mostly noise: one hand swings about ±115%. Read the ± column, and run 1M hands for the high counts.</p>`;
+    simRunning=false;if(sheetTab==='sim')renderSheet();
+  }
+  setTimeout(chunk,0);
+}
+/* ---- table evaluator ---- */
+function sheetTable(){
+  const P=edgeParts(),he=houseEdge(),hph=cfg.hph,mn=cfg.minBet,cost=e=>money(+(mn*hph*e/100).toFixed(2));
+  const rows=P.map(([l,v])=>`<tr><td>${l}</td><td class="${v>0?'bad':v<0?'good':''}">${v>0?'+':''}${v.toFixed(2)}%</td></tr>`).join('');
+  const base={decks:6,h17:0,das:1,bj:1.5,sur:0,dbl:'any',dsoft:1,nohole:0,obo:1,rsa:0,hsa:0};
+  const pre=[['6 deck, S17, DAS, 3:2, late surrender',{sur:1}],['6 deck, S17, DAS, 3:2',{}],['6 deck, H17, DAS, 3:2',{h17:1}],['6 deck, H17, no DAS, 3:2',{h17:1,das:0}],
+    ['2 deck, H17, DAS, 3:2',{decks:2,h17:1}],['2 deck, S17, DAS, 3:2',{decks:2}],['6 deck, S17, DAS, 6:5',{bj:1.2}],['6 deck, H17, DAS, 6:5',{bj:1.2,h17:1}]];
+  const prow=pre.map(([l,o])=>{const e=houseEdge(Object.assign({},base,o));return`<tr><td>${l}</td><td>${e.toFixed(2)}%</td><td>${cost(e)}</td></tr>`;}).join('');
+  return`<p>Counting is optional. Choosing the right table is not. The rules set the cost of every hand you play.</p>
+  <div class="card2"><span class="muted small">Your current rules</span><div>House edge with basic strategy: <b class="${he<=0.5?'good':he<=0.8?'':'bad'}">${he.toFixed(2)}%</b></div>
+  <div>Expected cost at ${money(mn)} flat, ${hph} hands/hour: <b>${cost(he)}/hour</b></div>
+  <div class="muted small">A ${money(mn*2)} bet doubles that. Cost per hour is bet × hands per hour × edge, which is why a fast CSM table costs more than the same rules on a shoe.</div></div>
+  <h3>What is driving it</h3><table class="t">${rows}</table>
+  <h3>Typical tables, ranked by cost</h3><table class="t"><tr><th>Rules</th><th>Edge</th><th>Per hour</th></tr>${prow}</table>
+  <p class="muted small">Same ${money(mn)} bet and ${hph} hands/hour. Estimates from published rule values. Shuffler type does not change the basic-strategy edge; it changes speed and counting value. If the casino offers a choice, take 3:2, S17, double after split, surrender and fewer decks, in that order of importance.</p>`;
+}
+/* ---- scout ---- */
+let scout=store.get('bjcsm_scout',[]);
+function sheetScout(){
+  const n=scout.length,cs=scout.map(x=>x.c).sort((a,b)=>a-b),avg=n?cs.reduce((a,b)=>a+b,0)/n:0,med=n?cs[Math.floor(n/2)]:0;
+  const by={};scout.forEach(x=>{const k=(x.note||'').trim()||'(no label)';(by[k]=by[k]||[]).push(x.c);});
+  const brows=Object.entries(by).map(([k,v])=>{const a=Math.round(v.reduce((x,y)=>x+y,0)/v.length);return`<tr><td>${k}</td><td>${v.length}</td><td>${a} (${(a/52).toFixed(1)} decks)</td><td><button class="btn sm" data-a="scapply" data-v="${a}">Use</button></td></tr>`;}).join('');
+  const list=scout.map((x,i)=>[x,i]).slice(-12).reverse().map(([x,i])=>`<tr><td>${new Date(x.t).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</td><td>${x.note||''}</td><td>${x.c}</td><td><button class="btn sm ghost" data-a="scdel" data-v="${i}">✕</button></td></tr>`).join('');
+  return`<p>The tray return point decides whether counting is worth anything on a CSM. Log what you see at your casino, then feed it straight into the simulator.</p>
+  <div class="card2"><div class="small muted">Each time the dealer puts the tray cards back in the machine, note how many cards were in the tray.</div>
+  <div class="row" style="margin:8px 0;flex-wrap:wrap"><input id="scVal" type="number" inputmode="decimal" placeholder="amount" style="width:90px"><select id="scUnit"><option value="cards">cards</option><option value="decks">decks</option><option value="rounds">rounds</option></select><input id="scNote" type="text" placeholder="Dealer or table" style="flex:1;min-width:110px"></div>
+  <button class="btn sm primary" data-a="scadd">Add observation</button></div>
+  ${n?`<div class="card2"><div>Observations: <b>${n}</b> · average <b class="mint">${Math.round(avg)}</b> cards (${(avg/52).toFixed(1)} decks) · median <b>${med}</b> · range ${cs[0]}–${cs[n-1]}</div>
+   <div class="row" style="margin-top:8px"><button class="btn sm" data-a="scapply" data-v="${Math.round(avg)}">Use average in the simulator</button></div></div>
+   <h3>By dealer or table</h3><table class="t"><tr><th>Label</th><th>Seen</th><th>Average tray</th><th></th></tr>${brows}</table>
+   <h3>Recent</h3><table class="t"><tr><th>Date</th><th>Label</th><th>Cards</th><th></th></tr>${list}</table>`:'<p class="muted">Nothing logged yet.</p>'}
+  <p class="muted small">"Rounds" is converted at about ${cpr().toFixed(1)} cards per round for your table size. After you apply a value, open the CSM vs Shoe tab to see what it is worth.</p>`;
+}
+/* ---- session Monte Carlo ---- */
+let sessOut='',sessRunning=false;
+function simRound(sm){
+  const tc=sm.tc(),g=roundGen(sm,1e12,1);let s=g.next();
+  while(!s.done){
+    const p=s.value;let inp;
+    if(p.kind==='insurance')inp=insuranceAdvice(tc,cfg.dev).take;
+    else{const h=p.r.hands[p.hand];inp=advise(h.cards,p.r.dealer[0],p.legal,sm.tc(),cfg.dev).act;}
+    s=g.next(inp);
+  }
+  sm.endRound(roundCards(s.value));return{u:s.value.net,tc};
+}
+function runSess(S){
+  if(sessRunning)return;sessRunning=true;sessOut='';
+  const H=Math.max(1,Math.round(cfg.hours*cfg.hph)),b0=cfg.bankroll,mn=cfg.minBet,R={cf:[],cs:[],sh:[]},t0=performance.now();let done=0;
+  function one(){
+    const A=new Machine(true,cfg.mode==='o2s'?'o2s':'csm'),B=new Machine(true,'asm');let fa=b0,sa=b0,sb=b0;
+    for(let h=0;h<H;h++){
+      const ra=simRound(A),rb=simRound(B);
+      if(fa>=mn)fa+=ra.u*mn;
+      if(sa>=mn)sa+=ra.u*Math.min(sa,suggestBet(ra.tc,sa));
+      if(sb>=mn)sb+=ra.u*Math.min(sb,suggestBet(rb.tc,sb));
+    }
+    R.cf.push(fa-b0);R.cs.push(sa-b0);R.sh.push(sb-b0);
+  }
+  function chunk(){
+    const end=Math.min(S,done+Math.max(1,Math.floor(3000/H)));
+    for(;done<end;done++)one();
+    const el=$('#sessOut');
+    if(done<S){if(el)el.innerHTML=`<p>Running… ${Math.round(100*done/S)}%</p>`;setTimeout(chunk,0);return;}
+    const pc=(a,p)=>{const x=[...a].sort((u,v)=>u-v);return x[Math.min(x.length-1,Math.floor(p*x.length))];};
+    const mean=a=>a.reduce((x,y)=>x+y,0)/a.length,mm=v=>money(Math.round(v));
+    const col=a=>({avg:mean(a),med:pc(a,.5),lo:pc(a,.05),hi:pc(a,.95),up:100*a.filter(x=>x>0).length/a.length,bust:100*a.filter(x=>b0+x<mn).length/a.length});
+    const C=[col(R.cf),col(R.cs),col(R.sh)];
+    const cell=(f,k)=>C.map(c=>`<td class="${c[k]>=0?'good':'bad'}">${f(c[k])}</td>`).join('');
+    sessOut=`<table class="t"><tr><th></th><th style="color:#2ee6d0">${cname()} flat</th><th style="color:#2ee6d0">${cname()} spread</th><th style="color:#ff5fa8">Shoe spread</th></tr>
+     <tr><td>Average</td>${cell(mm,'avg')}</tr><tr><td>Median</td>${cell(mm,'med')}</tr>
+     <tr><td>Bad day (5%)</td>${cell(mm,'lo')}</tr><tr><td>Good day (95%)</td>${cell(mm,'hi')}</tr>
+     <tr><td>Sessions ahead</td>${C.map(c=>`<td>${c.up.toFixed(0)}%</td>`).join('')}</tr>
+     <tr><td>Bankroll wiped</td>${C.map(c=>`<td class="${c.bust>2?'bad':''}">${c.bust.toFixed(1)}%</td>`).join('')}</tr></table>
+     <p class="muted small">${S} sessions of ${cfg.hours}h × ${cfg.hph} hands/hour from ${money(b0)}. Flat = ${money(mn)} every hand; spread = your bet suggestion (${({kelly:'Kelly',ramp:'ladder',scale:'scaled spread'})[cfg.spread]}). CSM tray ${Math.max(1,cfg.csmTray)} cards, shoe cut at ${cfg.pen}%, ${cfg.others||0} other player${cfg.others===1?'':'s'}. Results swing a lot, so look at the spread of outcomes, not just the average. ${((performance.now()-t0)/1000).toFixed(1)}s.</p>`;
+    sessRunning=false;if(sheetTab==='cmp')renderSheet();
+  }
+  setTimeout(chunk,0);
+}
+/* ---- count check quiz ---- */
+let quiz=null;
+function quizHTML(){
+  const st=(k,l)=>`<div class="set" style="padding:6px 0"><div class="l">${l}</div><div class="row">${[-5,-1].map(v=>`<button class="btn sm" data-a="qs" data-k="${k}" data-v="${v}">${v<0?'−'+(-v):'+'+v}</button>`).join('')}<b style="min-width:44px;text-align:center;font-size:20px;font-family:Georgia,serif">${sgn(quiz[k],0)}</b>${[1,5].map(v=>`<button class="btn sm" data-a="qs" data-k="${k}" data-v="${v}">+${v}</button>`).join('')}</div></div>`;
+  return`<div class="warnbox"><h4 style="color:var(--brass)">Check your count</h4>${st('rc','Running count')}${st('tc','True count (nearest whole number)')}<div class="row" style="margin-top:8px"><button class="btn" data-a="qcancel">Cancel</button><button class="btn primary" data-a="qsubmit">Check</button></div></div>`;
+}
+function recordCount(okR,okT){
+  const k=dayKey(new Date()),d=stats.days[k]||(stats.days[k]={n:0,ok:0,hint:0,cat:{}});
+  d.cnt=d.cnt||[0,0,0];d.cnt[0]++;if(okR)d.cnt[1]++;if(okT)d.cnt[2]++;store.set('bjcsm_stats',stats);
+}
+function countStatsHTML(){
+  const k=periodKeys(),P=[['Today',aggregate(k.today)],['Week',aggregate(k.week)],['Month',aggregate(k.month)],['All time',aggregate(null)]];
+  return`<h3>Count checks</h3><table class="t"><tr><th></th><th>Checks</th><th>Running ✓</th><th>True ✓</th></tr>${P.map(([l,a])=>`<tr><td>${l}</td><td>${a.cnt[0]}</td><td>${a.cnt[0]?Math.round(100*a.cnt[1]/a.cnt[0])+'%':'–'}</td><td>${a.cnt[0]?Math.round(100*a.cnt[2]/a.cnt[0])+'%':'–'}</td></tr>`).join('')}</table>`;
+}
+/* ---- CSM vs shoe comparison ---- */
+let cmpOut='',cmpRunning=false;
+const cname=()=>cfg.mode==='o2s'?'One2Six':'CSM';
+function lineChart(){
+  const H=hist.slice(-120);
+  if(H.length<2)return'<p class="muted">Play a few hands in CSM mode. Your CSM true count and the true count of a traditional shoe being dealt the same number of cards will be drawn here.</p>';
+  const W=340,Ht=160,lo=-6,hi=10,x=i=>8+i*(W-16)/Math.max(1,H.length-1),y=v=>Ht-8-(Math.min(hi,Math.max(lo,v))-lo)*(Ht-16)/(hi-lo);
+  const pts=k=>H.map((p,i)=>`${x(i).toFixed(1)},${y(p[k]).toFixed(1)}`).join(' ');
+  const be=houseEdge()/0.5,ab=k=>Math.round(100*H.filter(p=>p[k]>=be).length/H.length),mx=k=>Math.max(...H.map(p=>p[k]));
+  return`<svg viewBox="0 0 ${W} ${Ht}" style="width:100%;background:rgba(255,255,255,.04);border-radius:10px">
+   <line x1="8" x2="${W-8}" y1="${y(0)}" y2="${y(0)}" stroke="rgba(255,255,255,.25)"/>
+   <line x1="8" x2="${W-8}" y1="${y(be)}" y2="${y(be)}" stroke="#d6ad4f" stroke-width="1" stroke-dasharray="2 3"/>
+   <text x="${W-10}" y="${y(be)-3}" text-anchor="end" font-size="9" fill="#d6ad4f">breakeven +${be.toFixed(1)}</text>
+   <polyline points="${pts('b')}" fill="none" stroke="#ff5fa8" stroke-width="2.6" stroke-dasharray="7 4"/>
+   <polyline points="${pts('a')}" fill="none" stroke="#2ee6d0" stroke-width="3.4"/></svg>
+   <div class="small" style="margin-top:6px"><b style="color:#2ee6d0">━━ ${cname()}</b> &nbsp; <b style="color:#ff5fa8">╌╌ Shoe</b> &nbsp; <span class="muted">true count at the start of each of the last ${H.length} hands</span></div>
+   <table class="t"><tr><th></th><th style="color:#2ee6d0">${cname()}</th><th style="color:#ff5fa8">Shoe</th></tr>
+   <tr><td>Hands at or above breakeven</td><td style="color:#2ee6d0">${ab('a')}%</td><td style="color:#ff5fa8">${ab('b')}%</td></tr>
+   <tr><td>Highest true count</td><td style="color:#2ee6d0">${sgn(mx('a'),1)}</td><td style="color:#ff5fa8">${sgn(mx('b'),1)}</td></tr></table>`;
+}
+function sheetCmp(){
+  const maxT=Math.max(2,cfg.decks*52-40);
+  return`<p>The same rules, strategy and bet rule on two different shufflers: your CSM (cards return to the machine once the tray reaches your setting) against a traditional shoe dealt to a cut card.</p>
+  ${cfg.mode==='o2s'?`<div class="set" style="display:block"><div class="l">One2Six tray goes in after <b class="mint">${Math.max(1,cfg.o2sTray)}</b> cards</div><input type="range" min="1" max="${maxT}" value="${Math.max(1,cfg.o2sTray)}" data-range="o2sTray"></div><div class="set" style="display:block"><div class="l">Front shoe depth <b class="mint">${cfg.o2sFront}</b> cards</div><input type="range" min="8" max="30" value="${cfg.o2sFront}" data-range="o2sFront"></div>`:`<div class="set" style="display:block"><div class="l">CSM tray returns after <b class="mint">${Math.max(1,cfg.csmTray)}</b> cards</div><input type="range" min="1" max="${maxT}" value="${Math.max(1,cfg.csmTray)}" data-range="csmTray"></div>`}
+  <div class="set" style="display:block"><div class="l">Shoe cut card at <b class="mint">${cfg.pen}%</b></div><input type="range" min="40" max="90" step="5" value="${cfg.pen}" data-range="pen"></div>
+  <h3>Your session, side by side</h3>${lineChart()}
+  <h3>Simulate both</h3>
+  <p class="muted small">Plays the same number of hands on each shuffler.</p>
+  <div class="row" style="margin:8px 0">${[100000,300000,1000000].map(n=>`<button class="btn sm" data-a="cmp" data-v="${n}" ${cmpRunning?'disabled':''}>${n>=1e6?'1M':n/1000+'k'} hands</button>`).join('')}</div>
+  <div id="cmpOut">${cmpOut}</div>
+  <h3>Session outcomes</h3>
+  <p class="muted small">${cfg.hours} hour${cfg.hours>1?'s':''} at ${cfg.hph} hands/hour from ${money(cfg.bankroll)}. Compares flat minimum betting on the CSM with your bet spread on the CSM and on a shoe. Change length and speed in Settings.</p>
+  <div class="row" style="margin:8px 0">${[200,500,1000].map(n=>`<button class="btn sm" data-a="sess" data-v="${n}" ${sessRunning?'disabled':''}>${n} sessions</button>`).join('')}</div>
+  <div id="sessOut">${sessOut}</div>
+  <h3>Why they differ</h3>
+  <p>On a shoe the count builds across many rounds, so true counts of +4 or more show up late in the shoe. On a CSM the count only runs until the tray goes back in, then it resets to zero. The earlier the return, the flatter the line and the less the count is worth. Hold cards back for 1–2 decks and the CSM line starts to look like the front half of a shoe.</p>`;
+}
+function runCmp(N){
+  if(cmpRunning)return;cmpRunning=true;cmpOut='';
+  const mk=mode=>({m:new Machine(true,mode),n:0,flat:0,flat2:0,ramp:0,ramp2:0,rbet:0,hi2:0,pos:0});
+  const A=mk(cfg.mode==='o2s'?'o2s':'csm'),B=mk('asm'),bank=cfg.bankroll,t0=performance.now();let done=0;
+  function play(S){
+    const sm=S.m,tc=sm.tc(),b=suggestBet(tc,bank),g=roundGen(sm,1e12,1);let s=g.next();
+    while(!s.done){
+      const p=s.value;let inp;
+      if(p.kind==='insurance')inp=insuranceAdvice(tc,cfg.dev).take;
+      else{const h=p.r.hands[p.hand];inp=advise(h.cards,p.r.dealer[0],p.legal,sm.tc(),cfg.dev).act;}
+      s=g.next(inp);
+    }
+    const rr=s.value,u=rr.net;
+    S.flat+=u;S.flat2+=u*u;S.ramp+=u*b;S.ramp2+=u*u*b*b;S.rbet+=b;S.n++;
+    if(tc>=2)S.hi2++;if(edgeAt(tc)>0)S.pos++;
+    sm.endRound(roundCards(rr));
+  }
+  const R=S=>{const n=S.n,mean=S.flat/n,rm=S.ramp/n;
+    return{hi2:100*S.hi2/n,pos:100*S.pos/n,flat:mean*100,fse:Math.sqrt(Math.max(0,S.flat2/n-mean*mean)/n)*100,
+      avgb:S.rbet/n,rm,rse:Math.sqrt(Math.max(0,S.ramp2/n-rm*rm)/n),roi:100*rm/(S.rbet/n)};};
+  function chunk(){
+    const end=Math.min(N,done+3000);
+    for(;done<end;done++){play(A);play(B);}
+    const el=$('#cmpOut');
+    if(done<N){if(el)el.innerHTML=`<p>Running… ${Math.round(100*done/N)}%</p>`;setTimeout(chunk,0);return;}
+    const a=R(A),b=R(B),d=(x,y)=>`<td class="${x>=y?'good':''}">${x}</td>`;
+    cmpOut=`<table class="t"><tr><th></th><th style="color:#2ee6d0">${cfg.mode==='o2s'?'One2Six':`CSM (${Math.max(1,cfg.csmTray)} cards)`}</th><th style="color:#ff5fa8">Shoe (${cfg.pen}%)</th></tr>
+     <tr><td>Hands at true count +2 or more</td><td>${a.hi2.toFixed(1)}%</td><td>${b.hi2.toFixed(1)}%</td></tr>
+     <tr><td>Hands where the count favors you</td><td>${a.pos.toFixed(1)}%</td><td>${b.pos.toFixed(1)}%</td></tr>
+     <tr><td>Flat-bet edge per hand</td><td class="${a.flat>=0?'good':'bad'}">${sgn(a.flat,2)}%</td><td class="${b.flat>=0?'good':'bad'}">${sgn(b.flat,2)}%</td></tr>
+     <tr><td>Average bet with suggestion</td><td>${money(+a.avgb.toFixed(2))}</td><td>${money(+b.avgb.toFixed(2))}</td></tr>
+     <tr><td>Expected result per hand</td><td class="${a.rm>=0?'good':'bad'}">${money(+a.rm.toFixed(2))}</td><td class="${b.rm>=0?'good':'bad'}">${money(+b.rm.toFixed(2))}</td></tr>
+     <tr><td>Return on money bet</td><td class="${a.roi>=0?'good':'bad'}">${sgn(a.roi,2)}%</td><td class="${b.roi>=0?'good':'bad'}">${sgn(b.roi,2)}%</td></tr></table>
+     <p class="muted small">Per-hand noise: about ±${a.fse.toFixed(2)}% on flat edge and ±${money(+Math.max(a.rse,b.rse).toFixed(2))} on expected result, so small gaps are not meaningful. Bankroll ${money(bank)}, ${({kelly:'Kelly',ramp:'ladder',scale:'scaled spread'})[cfg.spread]} bet sizing. ${N.toLocaleString()} hands each in ${((performance.now()-t0)/1000).toFixed(1)}s.</p>`;
+    cmpRunning=false;if(sheetTab==='cmp')renderSheet();
+  }
+  setTimeout(chunk,0);
+}
+/* ---- admin ---- */
+function sheetAdmin(){
+  const cnt={},trayCnt={};RANKS.forEach(x=>{cnt[x]=0;trayCnt[x]=0;});
+  m.stock().forEach(c=>cnt[c.r]++);m.tray.forEach(c=>trayCnt[c.r]++);
+  const next=m.shoe.slice(-12).reverse();
+  const inPlay=r?r.hands.reduce((s,h)=>s+h.cards.length,0)+r.others.reduce((s,o)=>s+o.hands.reduce((q,h)=>q+h.cards.length,0),0)+r.dealer.length+(r.hole?1:0):0;
+  const pend=pendingCards?pendingCards.length:0;
+  const actual=m.stock().reduce((s,c)=>s+hiv(c.r),0)+(r&&r.hole?hiv(r.hole.r):0);
+  const lst=a=>`<div class="cardlist">${a.map(c=>`<span class="${isRed(c)?'r':''}">${c.r}${c.s}</span>`).join('')}</div>`;
+  const sum=m.left+m.tray.length+(r&&!pendingCards?inPlay:0)+pend;
+  return`<p class="muted small">Testing only. These are the real card objects the engine deals from.</p>
+  <div class="card2"><div>Hole card: <b>${r&&r.hole?r.hole.r+r.hole.s:'–'}</b></div><div>Integrity: <b class="${sum===m.total?'good':'bad'}">${sum} / ${m.total} cards accounted for</b></div>
+  <div>Machine ${m.left} · tray ${m.tray.length} · in play/pending ${r&&!pendingCards?inPlay:pend}</div></div>
+  <h3>Next 12 cards (first is next dealt)</h3>${lst(next)}
+  <h3>Composition in the machine</h3>
+  <table class="t"><tr><th></th>${RANKS.map(x=>`<th>${x}</th>`).join('')}</tr><tr><td>Left</td>${RANKS.map(x=>`<td>${cnt[x]}</td>`).join('')}</tr><tr><td>Tray</td>${RANKS.map(x=>`<td>${trayCnt[x]}</td>`).join('')}</tr></table>
+  <p>Running count shown to player: <b>${sgn(m.shownRC(),0)}</b>. Actual Hi-Lo of undealt cards (incl. hole): <b>${sgn(actual,0)}</b>. Sum should be the negative of the player's count when the full set is accounted for.</p>
+  <div class="row" style="margin-top:10px"><button class="btn sm" data-a="forceshuf" ${phase==='bet'?'':'disabled'}>Force full reshuffle</button></div>`;
+}
+
+/* ============ events ============ */
+function addChip(v){state.bet=Math.min(cfg.maxBet,state.bank,state.bet+v);if(state.bet<cfg.minBet&&state.bet===state.bank)state.bet=state.bank;renderDock();}
+function setCfg(k,v){
+  if(k==='others'||k==='tableSeats'||k==='mySeat')cfg.occ=null;
+  if(k==='tableSeats'){cfg.others=Math.min(cfg.others||0,v-1);}
+  cfg[k]=v;
+  if(cfg.mode==='o2s'&&cfg.decks>6)cfg.decks=6;
+  if(k==='mode'||k==='decks'){m=new Machine();shadow=new Machine(false,'asm');hist=[];pendingCards=null;r=null;phase='bet';}
+  saveCfg();render();
+}
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-a]');if(!t)return;
+  const a=t.dataset.a,v=t.dataset.v;
+  switch(a){
+    case'menu':openSheet(sheetTab||'set');break;
+    case'opencmp':openSheet('cmp');break;
+    case'qopen':quiz={rc:0,tc:0};renderDock();break;
+    case'qs':if(quiz){quiz[t.dataset.k]+=+v;renderDock();}break;
+    case'qcancel':quiz=null;renderDock();break;
+    case'qsubmit':{
+      if(!quiz)break;
+      const rcA=(phase==='result'&&willReshuffle())?0:m.shownRC(),tcA=nextTc(),okR=quiz.rc===rcA,okT=Math.abs(quiz.tc-tcA)<=0.6;
+      recordCount(okR,okT);
+      adviceMsg={cls:okR&&okT?'good':'bad',html:`Running count <b>${sgn(rcA,0)}</b> (you said ${sgn(quiz.rc,0)}) · true count <b>${sgn(tcA,1)}</b> (you said ${sgn(quiz.tc,0)})`};
+      quiz=null;render();break;}
+    case'scadd':{
+      const v0=parseFloat($('#scVal').value),u=$('#scUnit').value,note=$('#scNote').value;
+      if(!(v0>0))return toast('Enter an amount first');
+      const c=Math.round(u==='decks'?v0*52:u==='rounds'?v0*cpr():v0);
+      scout.push({t:Date.now(),c,note});if(scout.length>200)scout.shift();store.set('bjcsm_scout',scout);renderSheet();break;}
+    case'scdel':scout.splice(+v,1);store.set('bjcsm_scout',scout);renderSheet();break;
+    case'scapply':cfg.csmTray=Math.max(1,Math.min(+v,cfg.decks*52-40));saveCfg();render();toast(`CSM tray set to ${cfg.csmTray} cards`);break;
+    case'sess':runSess(+v);renderSheet();break;
+    case'clr':{
+      const key='clr-'+v;
+      if(confirmKey!==key){confirmKey=key;renderSheet();clearTimeout(runSim.ct);runSim.ct=setTimeout(()=>{confirmKey=null;if(sheetTab==='set'||sheetTab==='stats')renderSheet();},4000);break;}
+      if(v==='res'||v==='all'){results={days:{}};store.set('bjcsm_results',results);}
+      if(v==='acc'||v==='all'){stats={days:{}};sess={n:0,ok:0};store.set('bjcsm_stats',stats);}
+      if(v==='all'){state.net=0;state.hands=0;saveState();}
+      confirmKey=null;render();toast('Cleared');break;}
+    case'reseat':cfg.occ=null;saveCfg();render();toast('Players reseated');break;
+    case'cmp':runCmp(+v);renderSheet();break;
+    case'close':$('#sheet').classList.remove('open');break;
+    case'tab':sheetTab=v;confirmKey=null;renderSheet();$('#sbody').scrollTop=0;break;
+    case'chip':addChip(+v);break;
+    case'clear':state.bet=0;renderDock();break;
+    case'rebet':state.bet=Math.min(state.lastBet,state.bank);renderDock();break;
+    case'usesug':state.bet=Math.min(suggestBet(nextTc(),state.bank),state.bank);renderDock();break;
+    case'deal':deal();break;
+    case'act':onAct(v);break;
+    case'ins':onIns(v==='1');break;
+    case'next':nextHand(v);break;
+    case'hint':{
+      if(!pending)break;hinted=true;
+      if(pending.kind==='insurance'){const ia=insuranceAdvice(m.tc(),cfg.dev);adviceMsg={cls:'',html:`<b>${ia.take?'Take':'Decline'} insurance.</b> ${ia.why}`};}
+      else{const adv=curAdvice();adviceMsg={cls:'',html:`<b>${ACT[adv.act]}.</b> ${adv.why()}`};}
+      renderAdvice();break;}
+    case'wchange':closeModal();warn=null;break;
+    case'wplay':{const w=warn;warn=null;closeModal();
+      if(w.ia){adviceMsg=null;step(w.ins);}else{adviceMsg={cls:'bad',html:`<b>Not basic strategy.</b> ${ACT[w.adv.act]} was correct.`};step(w.a);}break;}
+    case'peek':if(!cfg.showCount){peekUntil=Date.now()+3000;renderHUD();setTimeout(renderHUD,3100);}break;
+    case'seg':{const nv=JSON.parse(t.dataset.v);if(phase==='act'||phase==='ins')return toast('Finish the hand first');setCfg(t.dataset.k,nv);break;}
+    case'tog':if((phase==='act'||phase==='ins')&&t.dataset.k!=='admin'&&t.dataset.k!=='coach')return toast('Finish the hand first');setCfg(t.dataset.k,cfg[t.dataset.k]?0:1);break;
+    case'tray':setCfg('csmTray',+v);break;
+    case'o2stray':cfg.o2sTray=+v;saveCfg();render();break;
+    case'rebank':if(phase==='result')nextHand('bet');state.bank=cfg.bankroll;state.net=0;state.hands=0;state.bet=cfg.minBet;saveState();render();break;
+    case'sim':runSim(+v);renderSheet();break;
+    case'forceshuf':m.fresh();render();break;
+    case'reset':{
+      if(confirmKey!==v){confirmKey=v;renderSheet();clearTimeout(runSim.ct);runSim.ct=setTimeout(()=>{confirmKey=null;if(sheetTab==='stats')renderSheet();},4000);break;}
+      const k=periodKeys();
+      for(const key of Object.keys(stats.days)){
+        if(v==='all'||(v==='today'&&key===k.today)||(v==='week'&&key>=k.week)||(v==='month'&&key>=k.month))delete stats.days[key];
+      }
+      if(v==='all'||v==='today')sess={n:0,ok:0};
+      store.set('bjcsm_stats',stats);confirmKey=null;renderSheet();renderHUD();toast('Stats reset');break;}
+  }
+});
+document.addEventListener('input',e=>{
+  const t=e.target;if(t.dataset.range){
+    const k=t.dataset.range;cfg[k]=+t.value;saveCfg();
+    const b=t.closest('.set').querySelector('b');if(b)b.textContent=k==='pen'?cfg.pen+'%':k==='csmTray'?cfg.csmTray:cfg[k];
+    renderHUD();
+  }
+});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.dataset.range){if(/^o2s(Front|Comp|Cap)$/.test(t.dataset.range)){m=new Machine();shadow=new Machine(false,'asm');hist=[];pendingCards=null;r=null;gen=null;pending=null;phase='bet';render();return;}renderSheet();return;}
+  if(t.dataset.num){
+    let v=Math.max(1,parseFloat(t.value)||0);const k=t.dataset.num;cfg[k]=v;
+    if(cfg.maxBet<cfg.minBet)cfg.maxBet=cfg.minBet;
+    saveCfg();if(k==='minBet'&&state.bet<cfg.minBet)state.bet=cfg.minBet;render();
+  }
+});
+try{render();}catch(err){var eb=document.getElementById('errbox');if(eb){eb.style.display='block';eb.textContent='Start-up error: '+err.message+'\n'+String(err.stack||'').split('\n').slice(0,3).join('\n');}}
+$('#table').addEventListener('click',skipDeal);
+</script>
+<script>
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});
+}
+</script>
+</body>
+</html>
